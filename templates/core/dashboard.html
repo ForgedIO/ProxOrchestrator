@@ -42,7 +42,7 @@
 <div class="columns is-multiline" style="margin-bottom:0.5rem;">
   <div class="column is-3">
     <div class="stat-card"
-         hx-get="/inventory/stats/"
+         hx-get="{% url 'inventory_stats' %}"
          hx-trigger="load"
          hx-target="#stat-total"
          hx-swap="innerHTML">
@@ -141,31 +141,31 @@
               {% for job in recent_jobs %}
               <tr>
                 <td style="vertical-align:middle;">
-                  <span class="is-monospace has-text-tiny">{{ job.original_filename|truncatechars:30 }}</span>
+                  <span class="is-monospace has-text-tiny">{{ job.upload_filename|truncatechars:30 }}</span>
                 </td>
                 <td style="vertical-align:middle;font-weight:500;color:#1a1a2e;">
                   {{ job.vm_name|default:"—" }}
                 </td>
                 <td style="vertical-align:middle;">
-                  {% if job.status == 'DONE' %}
+                  {% if job.stage == 'DONE' %}
                     <span class="status-badge vm-status-running">Done</span>
-                  {% elif job.status == 'FAILED' %}
+                  {% elif job.stage == 'FAILED' %}
                     <span class="status-badge vm-status-stopped">Failed</span>
-                  {% elif job.status == 'RUNNING' %}
-                    <span class="status-badge" style="background:#3273dc;color:#fff;">In Progress</span>
+                  {% elif job.stage == 'QUEUED' %}
+                    <span class="status-badge vm-status-unknown">Queued</span>
                   {% else %}
-                    <span class="status-badge vm-status-unknown">{{ job.status }}</span>
+                    <span class="status-badge" style="background:#3273dc;color:#fff;">In Progress</span>
                   {% endif %}
                 </td>
                 <td style="vertical-align:middle;color:#7a7a7a;font-size:0.85rem;">
                   {{ job.created_at|date:"M j, Y" }}
                 </td>
                 <td style="vertical-align:middle;">
-                  {% if job.status == 'DONE' %}
+                  {% if job.stage == 'DONE' and job.vmid %}
                     <a href="{% url 'vm_detail' job.vmid %}" class="button is-small is-light">
                       <i class="fas fa-external-link-alt"></i>
                     </a>
-                  {% elif job.status == 'RUNNING' %}
+                  {% elif job.stage != 'DONE' and job.stage != 'FAILED' %}
                     <a href="{% url 'importer_progress' job.id %}" class="button is-small is-info is-light">
                       <i class="fas fa-spinner fa-spin"></i>
                     </a>

@@ -21,11 +21,45 @@ HELP_DIR = getattr(settings, "HELP_DIR", Path(settings.BASE_DIR) / "help")
 @login_required
 def dashboard(request):
     """Main dashboard view."""
+    import os
     from apps.wizard.models import ProxmoxConfig
+    from apps.importer.models import ImportJob
+    from apps.proxmox.api import ProxmoxAPIError
 
-    wizard_complete = ProxmoxConfig.objects.filter(is_configured=True).exists()
+    config = ProxmoxConfig.objects.first()
+    wizard_complete = bool(config and config.is_configured)
+
+    proxmox_host = ""
+    api_ok = False
+    ssh_key_ok = False
+    recent_jobs = []
+
+    if wizard_complete:
+        proxmox_host = f"{config.host}:{config.api_port}" if config.host else ""
+
+        # Check SSH key on disk (fast — no network)
+        ssh_key_paths = [
+            "/opt/proxmigrate/.ssh/id_rsa",
+            os.path.expanduser("~/.ssh/id_rsa"),
+        ]
+        ssh_key_ok = any(os.path.exists(p) for p in ssh_key_paths)
+
+        # Quick API liveness check
+        try:
+            api = config.get_api_client()
+            api.get_nodes()
+            api_ok = True
+        except Exception:
+            api_ok = False
+
+        recent_jobs = list(ImportJob.objects.order_by("-created_at")[:5])
+
     context = {
         "wizard_complete": wizard_complete,
+        "proxmox_host": proxmox_host,
+        "api_ok": api_ok,
+        "ssh_key_ok": ssh_key_ok,
+        "recent_jobs": recent_jobs,
         "help_slug": "dashboard",
     }
     return render(request, "core/dashboard.html", context)

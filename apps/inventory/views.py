@@ -101,6 +101,29 @@ def vm_action(request, vmid, action):
 
 
 @login_required
+def vm_stats(request):
+    """HTMX endpoint: return VM counts (total, running, stopped) as a partial."""
+    config = ProxmoxConfig.get_config()
+    total = running = stopped = 0
+
+    if config and config.is_configured:
+        try:
+            api = config.get_api_client()
+            vms = api.get_vms(config.default_node)
+            total = len(vms)
+            running = sum(1 for v in vms if v.get("status") == "running")
+            stopped = total - running
+        except Exception as exc:
+            logger.warning("vm_stats: %s", exc)
+
+    return render(request, "inventory/partials/stats.html", {
+        "total": total,
+        "running": running,
+        "stopped": stopped,
+    })
+
+
+@login_required
 def check_vmid(request):
     """Check whether a VMID is available and within the configured pool.
 
