@@ -3,7 +3,10 @@ import logging
 import os
 import socket
 
+import posixpath
+
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
 
@@ -386,6 +389,48 @@ def step5(request):
         "storage_pools": storage_display,
         "network_bridges": bridge_display,
         "existing_vmids": env.existing_vmids,
+    })
+
+
+@login_required
+def step5_browse(request):
+    """HTMX endpoint: list directories on the Proxmox host via SSH for the dir browser."""
+    config = _get_or_create_config()
+    path = request.GET.get("path", "/var/tmp").strip() or "/var/tmp"
+
+    # Sanitise: must be an absolute path, no shell metacharacters
+    if not path.startswith("/"):
+        path = "/var/tmp"
+    # Strip any dangerous characters — only allow safe path chars
+    import re as _re
+    path = _re.sub(r"[^a-zA-Z0-9/_.\- ]", "", path).rstrip("/") or "/"
+
+    parent = posixpath.dirname(path) if path != "/" else "/"
+    dirs = []
+    error = None
+
+    try:
+        with config.get_ssh_client() as ssh:
+            # List directories only, sorted, one per line
+            stdout, _stderr, rc = ssh.run(
+                ["find", path, "-maxdepth", "1", "-mindepth", "1", "-type", "d"]
+            )
+            if rc == 0:
+                dirs = sorted(
+                    posixpath.basename(p) for p in stdout.splitlines() if p.strip()
+                )
+            else:
+                # Directory might not exist yet — show empty
+                dirs = []
+    except Exception as exc:
+        error = str(exc)
+        logger.warning("step5_browse SSH error at %s: %s", path, exc)
+
+    return render(request, "wizard/step5_browse.html", {
+        "path": path,
+        "parent": parent,
+        "dirs": dirs,
+        "error": error,
     })
 
 
