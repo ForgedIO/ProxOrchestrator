@@ -10,4 +10,3 @@ django-auth-ldap==4.6.0
 django-allauth==0.61.1
 Markdown==3.5.2
 cryptography==42.0.2
-Pillow==10.2.0

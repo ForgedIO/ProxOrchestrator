@@ -107,17 +107,20 @@ case "${OS_ID}" in
     debian)
         case "${OS_VERSION}" in
             12)
-                echo "    Detected: Debian ${OS_VERSION} — supported."
+                echo "    Detected: Debian 12 (Bookworm) — supported."
+                ;;
+            13)
+                echo "    Detected: Debian 13 (Trixie) — supported."
                 ;;
             *)
                 echo "WARNING: Debian ${OS_VERSION} is not officially supported." >&2
-                echo "         Supported versions: 12 (Bookworm)"
+                echo "         Supported versions: 12 (Bookworm), 13 (Trixie)"
                 echo "         Proceeding anyway — things may not work correctly."
                 ;;
         esac
         ;;
     *)
-        echo "ERROR: Unsupported OS '${OS_ID}'. ProxMigrate supports Ubuntu 22.04/24.04 and Debian 12." >&2
+        echo "ERROR: Unsupported OS '${OS_ID}'. ProxMigrate supports Ubuntu 22.04/24.04 and Debian 12/13." >&2
         exit 1
         ;;
 esac
@@ -128,16 +131,38 @@ esac
 
 echo "==> Installing system packages..."
 apt-get update -qq
-apt-get install -y \
-    python3 \
-    python3-pip \
-    python3-venv \
-    nginx \
-    redis-server \
-    openssl \
-    openssh-client \
-    qemu-utils \
+PKGS=(
+    python3
+    python3-pip
+    python3-venv
+    python3-dev
+    gcc
+    libldap-dev
+    libsasl2-dev
+    libssl-dev
+    nginx
+    redis-server
+    openssl
+    openssh-client
     rsync
+)
+
+# Detect if running on a Proxmox VE host.
+# If so, skip qemu-utils (pve-qemu-kvm provides qemu-img already)
+# and warn the user that they should ideally run ProxMigrate on a separate server.
+if [[ -f /usr/bin/pveversion ]]; then
+    echo ""
+    echo "  NOTE: Proxmox VE detected on this host."
+    echo "  ProxMigrate is designed to run on a SEPARATE server that connects to Proxmox"
+    echo "  via SSH and REST API. Installing here is supported but not recommended."
+    echo "  qemu-utils install skipped — pve-qemu-kvm already provides qemu-img."
+    echo ""
+    # pve-qemu-kvm provides qemu-img, no need to install qemu-utils
+else
+    PKGS+=(qemu-utils)
+fi
+
+apt-get install -y "${PKGS[@]}"
 
 # ---------------------------------------------------------------------------
 # System user
@@ -346,24 +371,32 @@ sudo -u "${APP_USER}" \
 
 echo "==> Creating admin user..."
 echo ""
-read -rp "    Admin username [admin]: " ADMIN_USER
-ADMIN_USER="${ADMIN_USER:-admin}"
 
-while true; do
-    read -rsp "    Admin password: " ADMIN_PASS
-    echo ""
-    if [[ -z "${ADMIN_PASS}" ]]; then
-        echo "    Password cannot be empty. Please try again."
-    else
-        read -rsp "    Confirm password: " ADMIN_PASS2
+# Allow non-interactive install via environment variables
+if [[ -n "${PROXMIGRATE_ADMIN_USER:-}" && -n "${PROXMIGRATE_ADMIN_PASS:-}" ]]; then
+    ADMIN_USER="${PROXMIGRATE_ADMIN_USER}"
+    ADMIN_PASS="${PROXMIGRATE_ADMIN_PASS}"
+    echo "    Using credentials from environment variables."
+else
+    read -rp "    Admin username [admin]: " ADMIN_USER
+    ADMIN_USER="${ADMIN_USER:-admin}"
+
+    while true; do
+        read -rsp "    Admin password: " ADMIN_PASS
         echo ""
-        if [[ "${ADMIN_PASS}" == "${ADMIN_PASS2}" ]]; then
-            break
+        if [[ -z "${ADMIN_PASS}" ]]; then
+            echo "    Password cannot be empty. Please try again."
         else
-            echo "    Passwords do not match. Please try again."
+            read -rsp "    Confirm password: " ADMIN_PASS2
+            echo ""
+            if [[ "${ADMIN_PASS}" == "${ADMIN_PASS2}" ]]; then
+                break
+            else
+                echo "    Passwords do not match. Please try again."
+            fi
         fi
-    fi
-done
+    done
+fi
 
 ADMIN_EMAIL="${ADMIN_USER}@localhost"
 
