@@ -11,7 +11,9 @@
       </div>
       <h2>Configure Defaults</h2>
     </div>
-    <p class="subtitle">Set the default values used when creating new VMs. You can change these later in Settings.</p>
+    <p class="subtitle">
+      These defaults pre-fill the VM creation form — you can override every value per-VM when you import.
+    </p>
   </div>
 
   <div class="wizard-card-body">
@@ -22,6 +24,19 @@
         {{ error }}
       </div>
     {% endif %}
+
+    {# Disk flow info box #}
+    <div class="info-box" style="margin-bottom:1.5rem;">
+      <div class="info-box-icon"><i class="fas fa-route"></i></div>
+      <div style="font-size:0.85rem;">
+        <strong>Disk import flow:</strong>
+        Browser upload &rarr; <strong>this server's disk</strong> (convert with qemu-img)
+        &rarr; SFTP &rarr; <strong>Proxmox temp dir</strong>
+        &rarr; <code>qm importdisk</code> &rarr; storage pool.
+        Disk space is used on <em>both</em> this server and Proxmox during import, then
+        cleaned up automatically.
+      </div>
+    </div>
 
     <form method="post" action="{% url 'wizard_step5' %}" id="step5-form">
       {% csrf_token %}
@@ -41,9 +56,12 @@
               <div class="select is-fullwidth">
                 <select name="default_node" id="id_default_node">
                   {% for node in nodes %}
-                    <option value="{{ node.name }}" {% if form.default_node.value == node.name %}selected{% endif %}>
-                      {{ node.name }}{% if node.status == 'online' %} (online){% endif %}
+                    <option value="{{ node.node }}"
+                      {% if form.default_node.value == node.node %}selected{% endif %}>
+                      {{ node.node }}{% if node.status == 'online' %} (online){% endif %}
                     </option>
+                  {% empty %}
+                    <option value="">No nodes found</option>
                   {% endfor %}
                 </select>
               </div>
@@ -57,10 +75,13 @@
             <div class="control">
               <div class="select is-fullwidth">
                 <select name="default_storage" id="id_default_storage">
-                  {% for storage in storage_pools %}
-                    <option value="{{ storage.storage }}" {% if form.default_storage.value == storage.storage %}selected{% endif %}>
-                      {{ storage.storage }} ({{ storage.type }}, {{ storage.avail_gb|floatformat:0 }} GB free)
+                  {% for s in storage_pools %}
+                    <option value="{{ s.storage }}"
+                      {% if form.default_storage.value == s.storage %}selected{% endif %}>
+                      {{ s.storage }} ({{ s.type }}{% if s.avail_gb %}, {{ s.avail_gb|floatformat:0 }} GB free{% endif %})
                     </option>
+                  {% empty %}
+                    <option value="">No storage found</option>
                   {% endfor %}
                 </select>
               </div>
@@ -75,9 +96,12 @@
               <div class="select is-fullwidth">
                 <select name="default_bridge" id="id_default_bridge">
                   {% for bridge in network_bridges %}
-                    <option value="{{ bridge }}" {% if form.default_bridge.value == bridge %}selected{% endif %}>
+                    <option value="{{ bridge }}"
+                      {% if form.default_bridge.value == bridge %}selected{% endif %}>
                       {{ bridge }}
                     </option>
+                  {% empty %}
+                    <option value="">No bridges found</option>
                   {% endfor %}
                 </select>
               </div>
@@ -85,20 +109,25 @@
             <p class="field-hint">New VM network interfaces will use this bridge.</p>
           </div>
 
-          {# Temp Directory #}
+          {# Proxmox Temp Directory #}
           <div class="field">
-            <label class="label" style="font-weight:600;color:#1a1a2e;font-size:0.9rem;">Upload Temp Directory</label>
+            <label class="label" style="font-weight:600;color:#1a1a2e;font-size:0.9rem;">
+              Proxmox Temp Directory
+            </label>
             <div class="control has-icons-left">
               <input
                 class="input is-monospace"
                 type="text"
-                name="temp_dir"
-                value="{{ form.temp_dir.value|default:'/tmp/proxmigrate' }}"
-                placeholder="/tmp/proxmigrate"
+                name="proxmox_temp_dir"
+                value="{{ form.proxmox_temp_dir.value|default:'/var/tmp/proxmigrate/' }}"
+                placeholder="/var/tmp/proxmigrate/"
               >
               <span class="icon is-left"><i class="fas fa-folder" style="color:#b5b5b5;"></i></span>
             </div>
-            <p class="field-hint">Staging directory on this server for uploaded disk files before SFTP transfer.</p>
+            <p class="field-hint">
+              Staging directory <strong>on the Proxmox host</strong> — files are SFTPed here
+              then imported. Cleaned up after each import.
+            </p>
           </div>
         </div>
 
@@ -123,8 +152,8 @@
               <div class="field" style="margin-bottom:1.25rem;">
                 <label class="label" style="font-weight:600;color:#1a1a2e;font-size:0.9rem;">RAM (MB)</label>
                 <div class="control has-icons-left">
-                  <input class="input" type="number" name="default_memory"
-                    value="{{ form.default_memory.value|default:2048 }}" min="256" step="256">
+                  <input class="input" type="number" name="default_memory_mb"
+                    value="{{ form.default_memory_mb.value|default:2048 }}" min="256" step="256">
                   <span class="icon is-left"><i class="fas fa-memory" style="color:#b5b5b5;"></i></span>
                 </div>
               </div>
@@ -137,7 +166,6 @@
               VMID Pool Range
             </div>
 
-            {# Conflict warning #}
             {% if existing_vmids %}
               <div style="font-size:0.78rem;color:#7a7a7a;margin-bottom:0.75rem;">
                 <i class="fas fa-info-circle" style="color:#3273dc;margin-right:0.3rem;"></i>
@@ -152,8 +180,8 @@
                 <div class="field">
                   <label class="label" style="font-size:0.85rem;font-weight:600;color:#4a4a4a;">Pool Min</label>
                   <div class="control">
-                    <input class="input" type="number" name="vmid_pool_min"
-                      value="{{ form.vmid_pool_min.value|default:900 }}" min="100" max="999999999">
+                    <input class="input" type="number" name="vmid_min"
+                      value="{{ form.vmid_min.value|default:100 }}" min="100" max="999999999">
                   </div>
                 </div>
               </div>
@@ -161,15 +189,15 @@
                 <div class="field">
                   <label class="label" style="font-size:0.85rem;font-weight:600;color:#4a4a4a;">Pool Max</label>
                   <div class="control">
-                    <input class="input" type="number" name="vmid_pool_max"
-                      value="{{ form.vmid_pool_max.value|default:999 }}" min="100" max="999999999">
+                    <input class="input" type="number" name="vmid_max"
+                      value="{{ form.vmid_max.value|default:999 }}" min="100" max="999999999">
                   </div>
                 </div>
               </div>
             </div>
             <p class="field-hint" style="margin-top:0.25rem;">
-              ProxMigrate will auto-select VMIDs within this range when creating VMs.
-              Proxmox reserves 100–999 for system use; we recommend starting at 900 or higher if those are free.
+              ProxMigrate auto-selects VMIDs within this range. Proxmox reserves 100–999 by
+              convention; 900–999 or 1000+ is a safe starting range if those are free.
             </p>
           </div>
 
@@ -185,7 +213,7 @@
     </a>
     <button type="submit" form="step5-form" class="button is-success is-medium" style="font-weight:600;min-width:200px;">
       <span class="icon"><i class="fas fa-save"></i></span>
-      <span>Save &amp; Complete</span>
+      <span>Save &amp; Continue</span>
       <span class="icon"><i class="fas fa-arrow-right"></i></span>
     </button>
   </div>

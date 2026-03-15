@@ -326,6 +326,21 @@ def step5(request):
     storage_choices = [(s["storage"], s["storage"]) for s in env.storage_pools]
     network_choices = [(n["iface"], n["iface"]) for n in env.networks]
 
+    # Build enriched storage list with avail_gb for the template
+    storage_display = []
+    for s in env.storage_pools:
+        avail_bytes = s.get("avail", 0) or 0
+        storage_display.append({
+            **s,
+            "avail_gb": avail_bytes / 1024 / 1024 / 1024,
+        })
+
+    # Bridge list — prefer vmbr* bridges
+    bridge_display = [
+        n["iface"] for n in env.networks
+        if n["iface"].startswith("vmbr") or n.get("type") in ("bridge",)
+    ] or [n["iface"] for n in env.networks]
+
     if request.method == "POST":
         form = Step5Form(
             request.POST,
@@ -347,9 +362,9 @@ def step5(request):
             return redirect("/wizard/step/6/")
     else:
         initial = {
-            "default_node": config.default_node,
-            "default_storage": config.default_storage,
-            "default_bridge": config.default_bridge,
+            "default_node": config.default_node or (env.nodes[0]["node"] if env.nodes else ""),
+            "default_storage": config.default_storage or (env.storage_pools[0]["storage"] if env.storage_pools else ""),
+            "default_bridge": config.default_bridge or (bridge_display[0] if bridge_display else ""),
             "proxmox_temp_dir": config.proxmox_temp_dir,
             "default_cores": config.default_cores,
             "default_memory_mb": config.default_memory_mb,
@@ -363,7 +378,15 @@ def step5(request):
             bridge_choices=network_choices,
         )
 
-    return render(request, "wizard/step5.html", {"form": form, "error": error, "step": 5})
+    return render(request, "wizard/step5.html", {
+        "form": form,
+        "error": error,
+        "step": 5,
+        "nodes": env.nodes,
+        "storage_pools": storage_display,
+        "network_bridges": bridge_display,
+        "existing_vmids": env.existing_vmids,
+    })
 
 
 @login_required
