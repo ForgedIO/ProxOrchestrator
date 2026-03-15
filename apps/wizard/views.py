@@ -361,6 +361,7 @@ def step5(request):
             config.vmid_min = form.cleaned_data["vmid_min"]
             config.vmid_max = form.cleaned_data["vmid_max"]
             config.wizard_step = 6
+            config.is_configured = True
             config.save()
             return redirect("/wizard/step/6/")
     else:
