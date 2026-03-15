@@ -17,7 +17,6 @@
       overflow: hidden;
     }
 
-    /* Top toolbar */
     .console-toolbar {
       background: #1a1a2e;
       border-bottom: 1px solid #2a2a4a;
@@ -28,7 +27,7 @@
       flex-shrink: 0;
       height: 44px;
     }
-    .console-toolbar .vm-label {
+    .vm-label {
       font-size: 0.875rem;
       font-weight: 600;
       color: #e0e0e0;
@@ -36,7 +35,7 @@
       align-items: center;
       gap: 0.5rem;
     }
-    .console-toolbar .vm-label .badge {
+    .vm-label .badge {
       background: #48c78e;
       color: #fff;
       font-size: 0.7rem;
@@ -44,7 +43,7 @@
       border-radius: 999px;
       font-weight: 700;
     }
-    .console-toolbar .spacer { flex: 1; }
+    .spacer { flex: 1; }
     .toolbar-btn {
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.12);
@@ -60,21 +59,14 @@
       transition: background 0.15s;
     }
     .toolbar-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
-    .toolbar-btn.is-danger { border-color: rgba(241,70,104,0.4); color: #f14668; }
-    .toolbar-btn.is-danger:hover { background: rgba(241,70,104,0.15); }
 
-    /* noVNC canvas area */
     #novnc-container {
       flex: 1;
       position: relative;
       overflow: hidden;
       background: #111;
     }
-    #novnc-container canvas {
-      display: block;
-    }
 
-    /* Status overlay */
     #status-overlay {
       position: absolute;
       inset: 0;
@@ -85,6 +77,8 @@
       gap: 1rem;
       background: #111;
       z-index: 10;
+      padding: 2rem;
+      text-align: center;
     }
     .status-spinner {
       width: 40px; height: 40px;
@@ -94,16 +88,20 @@
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .status-text {
-      font-size: 0.9rem;
-      color: #9a9a9a;
+    .status-text { font-size: 0.9rem; color: #9a9a9a; }
+
+    .cert-warning {
+      background: rgba(245,158,11,0.1);
+      border: 1px solid rgba(245,158,11,0.3);
+      border-radius: 10px;
+      padding: 1.5rem 2rem;
+      max-width: 480px;
+      display: none;
     }
-    .status-error {
-      color: #f14668;
-      font-size: 0.9rem;
-      max-width: 400px;
-      text-align: center;
-    }
+    .cert-warning h3 { color: #f59e0b; font-size: 1rem; margin-bottom: 0.5rem; }
+    .cert-warning p { font-size: 0.85rem; color: #b5b5b5; line-height: 1.6; margin-bottom: 1rem; }
+    .cert-warning .steps { font-size: 0.82rem; color: #9a9a9a; text-align: left; line-height: 2; margin-bottom: 1rem; }
+    .cert-warning .steps strong { color: #e0e0e0; }
   </style>
 </head>
 <body>
@@ -125,10 +123,8 @@
     </svg>
     Fullscreen
   </button>
-  <button class="toolbar-btn" id="btn-ctrl-alt-del" title="Send Ctrl+Alt+Del">
-    Ctrl+Alt+Del
-  </button>
-  <button class="toolbar-btn" id="btn-clipboard" title="Paste clipboard text to VM">
+  <button class="toolbar-btn" id="btn-ctrl-alt-del">Ctrl+Alt+Del</button>
+  <button class="toolbar-btn" id="btn-clipboard">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
       <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
@@ -151,45 +147,82 @@
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f14668" stroke-width="2">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
-      <div class="status-error">{{ error }}</div>
+      <div style="color:#f14668;font-size:0.9rem;">{{ error }}</div>
       <a class="toolbar-btn" href="{% url 'vm_detail' vmid %}" style="margin-top:0.5rem;">Back to VM</a>
     {% else %}
       <div class="status-spinner"></div>
       <div class="status-text" id="status-text">Connecting to console…</div>
+
+      <div class="cert-warning" id="cert-warning">
+        <h3>⚠ Certificate Not Trusted</h3>
+        <p>
+          Your browser is refusing the connection because it doesn't trust
+          the Proxmox server's SSL certificate. This is a one-time step.
+        </p>
+        <div class="steps">
+          <strong>Step 1.</strong> Open the Proxmox web UI in a new tab and accept the certificate:<br>
+          <a href="https://{{ vnc.proxmox_host }}:{{ vnc.proxmox_port }}"
+             target="_blank"
+             style="color:#48c78e;word-break:break-all;">
+            https://{{ vnc.proxmox_host }}:{{ vnc.proxmox_port }}
+          </a><br><br>
+          <strong>Step 2.</strong> Click "Advanced" → "Proceed" (or "Accept the Risk").<br><br>
+          <strong>Step 3.</strong> Return here and reload the console.
+        </div>
+        <button class="toolbar-btn" onclick="location.reload()" style="margin:0 auto;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+          Reload Console
+        </button>
+      </div>
     {% endif %}
   </div>
 </div>
 
 {% if not error %}
-{# Load noVNC from the Proxmox server — guaranteed to be there and version-matched #}
+{# Data block — avoids any template escaping issues in JS #}
 <script id="console-data" type="application/json">
-  {"host": "{{ vnc.proxmox_host }}", "port": {{ vnc.proxmox_port }}, "node": "{{ vnc.node }}", "vmid": {{ vmid }}, "ticket": "{{ vnc.ticket }}", "vnc_port": {{ vnc.port }}}
+{"host": "{{ vnc.proxmox_host }}", "port": {{ vnc.proxmox_port }}, "node": "{{ vnc.node }}", "vmid": {{ vmid }}, "ticket": "{{ vnc.ticket }}", "vnc_port": {{ vnc.port }}}
 </script>
+
+{# noVNC loaded from jsDelivr CDN — proper CORS headers, no dependency on Proxmox serving it #}
 <script type="module">
   const d = JSON.parse(document.getElementById('console-data').textContent);
-  const PROXMOX_HOST = d.host;
-  const PROXMOX_PORT = d.port;
-  const NODE        = d.node;
-  const VMID        = d.vmid;
-  const VNC_TICKET  = d.ticket;
-  const VNC_PORT    = d.vnc_port;
 
-  // noVNC is bundled with every Proxmox installation
-  const rfbUrl = `https://${PROXMOX_HOST}:${PROXMOX_PORT}/novnc/core/rfb.js`;
+  // Test WebSocket reachability before loading noVNC — catches cert errors early
+  function testWs(url) {
+    return new Promise((resolve) => {
+      const ws = new WebSocket(url);
+      const timer = setTimeout(() => { ws.close(); resolve('timeout'); }, 6000);
+      ws.onopen  = () => { clearTimeout(timer); ws.close(); resolve('ok'); };
+      ws.onerror = () => { clearTimeout(timer); resolve('error'); };
+    });
+  }
 
-  const { default: RFB } = await import(rfbUrl).catch(() => {
-    document.getElementById('status-text').textContent =
-      'Could not load noVNC from Proxmox server. Check browser console.';
-    return { default: null };
-  });
-  if (!RFB) throw new Error('RFB not loaded');
+  const wsUrl = `wss://${d.host}:${d.port}/api2/json/nodes/${d.node}/qemu/${d.vmid}/vncwebsocket` +
+                `?port=${d.vnc_port}&vncticket=${encodeURIComponent(d.ticket)}`;
+
+  document.getElementById('status-text').textContent = 'Checking connection to Proxmox…';
+
+  const probe = await testWs(wsUrl);
+  if (probe === 'error') {
+    document.getElementById('status-spinner')?.remove();
+    document.getElementById('status-text').style.display = 'none';
+    document.getElementById('cert-warning').style.display = 'block';
+    throw new Error('WebSocket probe failed — likely cert not trusted');
+  }
+
+  document.getElementById('status-text').textContent = 'Loading console…';
+
+  // Load noVNC from CDN
+  const { default: RFB } = await import(
+    'https://cdn.jsdelivr.net/npm/@novnc/novnc@1.5.0/core/rfb.js'
+  );
 
   const container = document.getElementById('novnc-container');
-  const wsUrl = `wss://${PROXMOX_HOST}:${PROXMOX_PORT}/api2/json/nodes/${NODE}/qemu/${VMID}/vncwebsocket` +
-                `?port=${VNC_PORT}&vncticket=${encodeURIComponent(VNC_TICKET)}`;
-
   const rfb = new RFB(container, wsUrl, {
-    credentials: { password: VNC_TICKET },
+    credentials: { password: d.ticket },
   });
 
   rfb.scaleViewport = true;
@@ -206,25 +239,20 @@
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       <div style="color:#f59e0b;font-size:0.9rem;">
-        Disconnected${e.detail.clean ? '' : ' (unexpectedly)'}.
+        Disconnected${e.detail.clean ? '' : ' unexpectedly'}.
       </div>
-      <a href="/vm/${VMID}/console/" style="margin-top:0.5rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#d0d0d0;font-size:0.78rem;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;">
+      <a href="/vm/${d.vmid}/console/"
+         style="margin-top:0.5rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#d0d0d0;font-size:0.78rem;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;">
         Reconnect
       </a>`;
     overlay.style.display = 'flex';
   });
 
-  // Toolbar buttons
-  document.getElementById('btn-ctrl-alt-del').addEventListener('click', () => {
-    rfb.sendCtrlAltDel();
-  });
+  document.getElementById('btn-ctrl-alt-del').addEventListener('click', () => rfb.sendCtrlAltDel());
 
   document.getElementById('btn-fullscreen').addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-      container.requestFullscreen();
-    } else {
-      document.exitFullscreen();
-    }
+    if (!document.fullscreenElement) container.requestFullscreen();
+    else document.exitFullscreen();
   });
 
   document.getElementById('btn-clipboard').addEventListener('click', async () => {
