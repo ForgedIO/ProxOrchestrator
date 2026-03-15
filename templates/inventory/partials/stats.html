@@ -1,0 +1,4 @@
+{# HTMX partial — updates #stat-total inline, OOB-swaps #stat-running and #stat-stopped #}
+{{ total }}
+<span id="stat-running" hx-swap-oob="innerHTML">{{ running }}</span>
+<span id="stat-stopped" hx-swap-oob="innerHTML">{{ stopped }}</span>
