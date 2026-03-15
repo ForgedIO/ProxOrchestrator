@@ -169,6 +169,8 @@ def step2(request):
             "error": error,
             "success": success,
             "public_key": public_key_content or "(key not found)",
+            "proxmox_host": config.host or "",
+            "ssh_port": config.ssh_port,
             "step": 2,
         },
     )
@@ -212,7 +214,13 @@ def step3(request):
         initial = {"api_token_id": config.api_token_id or ""}
         form = Step3Form(initial=initial)
 
-    return render(request, "wizard/step3.html", {"form": form, "error": error, "step": 3})
+    return render(request, "wizard/step3.html", {
+        "form": form,
+        "error": error,
+        "step": 3,
+        "proxmox_host": config.host or "",
+        "api_port": config.api_port,
+    })
 
 
 @login_required
