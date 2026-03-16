@@ -225,25 +225,6 @@ def delete_job(request, job_id):
 @login_required
 @require_POST
 def resume_job(request, job_id):
-    """Re-queue a QUEUED or FAILED import job."""
+    """Resume a stopped import job by returning to the configure page."""
     job = get_object_or_404(ImportJob, pk=job_id)
-
-    if job.stage == "FAILED":
-        # Send back to configure so the user can fix settings and retry
-        return redirect("importer_configure", job_id=job.pk)
-
-    if not job.vm_config_json:
-        # Job was never configured — send to configure step
-        return redirect("importer_configure", job_id=job.pk)
-
-    # Reset stage to QUEUED and re-fire the Celery task
-    job.stage = "QUEUED"
-    job.message = ""
-    job.error = ""
-    job.percent = 0
-    job.save(update_fields=["stage", "message", "error", "percent", "updated_at"])
-
-    from apps.importer.tasks import run_import_pipeline
-    run_import_pipeline.delay(job.pk)
-
-    return redirect("importer_progress", job_id=job.pk)
+    return redirect("importer_configure", job_id=job.pk)

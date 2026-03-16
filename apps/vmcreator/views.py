@@ -232,22 +232,6 @@ def delete_job(request, job_id):
 @login_required
 @require_POST
 def resume_job(request, job_id):
-    """Re-queue a QUEUED or FAILED VM create job."""
+    """Resume a stopped VM create job by returning to the configure page."""
     job = get_object_or_404(VmCreateJob, pk=job_id)
-
-    if job.stage == VmCreateJob.STAGE_FAILED:
-        return redirect("vmcreator_configure", job_id=job.pk)
-
-    if not job.vm_config_json:
-        return redirect("vmcreator_configure", job_id=job.pk)
-
-    job.stage = VmCreateJob.STAGE_QUEUED
-    job.message = ""
-    job.error = ""
-    job.percent = 0
-    job.save(update_fields=["stage", "message", "error", "percent", "updated_at"])
-
-    from apps.vmcreator.tasks import run_create_pipeline
-    run_create_pipeline.delay(job.pk)
-
-    return redirect("vmcreator_progress", job_id=job.pk)
+    return redirect("vmcreator_configure", job_id=job.pk)
