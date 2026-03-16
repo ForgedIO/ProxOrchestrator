@@ -249,12 +249,17 @@ def upload_signed_cert(request):
         return redirect("cert_settings")
 
     cert_file = request.FILES.get("signed_cert")
-    if not cert_file:
-        messages.error(request, "Please select the signed certificate file.")
+    cert_pem_text = request.POST.get("cert_pem", "").strip()
+
+    if not cert_file and not cert_pem_text:
+        messages.error(request, "Please upload or paste the signed certificate.")
         return redirect("cert_settings")
 
     try:
-        cert_content = cert_file.read()
+        if cert_file:
+            cert_content = cert_file.read()
+        else:
+            cert_content = cert_pem_text.encode("utf-8")
         with open(CSR_KEY_FILE, "rb") as f:
             key_content = f.read()
 
