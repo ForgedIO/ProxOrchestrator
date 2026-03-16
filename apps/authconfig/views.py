@@ -172,7 +172,8 @@ def auth_settings_test(request, auth_type):
         conn.set_option(ldap.OPT_NETWORK_TIMEOUT, 5)
         conn.set_option(ldap.OPT_TIMEOUT, 5)
 
-        if use_tls:
+        # STARTTLS only applies to plain ldap:// — ldaps:// is already TLS
+        if use_tls and not server_uri.lower().startswith("ldaps://"):
             conn.start_tls_s()
 
         conn.simple_bind_s(bind_dn or "", bind_password or "")
