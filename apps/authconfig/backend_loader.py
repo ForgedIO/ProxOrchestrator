@@ -65,7 +65,8 @@ def _configure_ldap(config):
     )
     settings.AUTH_LDAP_ALWAYS_UPDATE_USER = True
 
-    if config.use_tls:
+    # STARTTLS only applies to plain ldap:// — ldaps:// is already TLS
+    if config.use_tls and not config.server_uri.lower().startswith("ldaps://"):
         settings.AUTH_LDAP_START_TLS = True
 
     if config.skip_cert_verify:
