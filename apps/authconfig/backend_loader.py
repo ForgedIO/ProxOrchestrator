@@ -120,14 +120,19 @@ def _configure_ldap(config):
             "(objectClass=group)",
         )
 
+    # Always set/clear these so stale values don't persist after config changes.
     if config.require_group:
         settings.AUTH_LDAP_REQUIRE_GROUP = config.require_group
+    else:
+        settings.AUTH_LDAP_REQUIRE_GROUP = None
 
     if config.admin_group:
         settings.AUTH_LDAP_USER_FLAGS_BY_GROUP = {
             "is_staff": config.admin_group,
             "is_superuser": config.admin_group,
         }
+    else:
+        settings.AUTH_LDAP_USER_FLAGS_BY_GROUP = {}
 
 
 def _configure_entra(config):
