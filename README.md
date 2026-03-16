@@ -85,7 +85,20 @@ The installer:
 6. Creates and enables systemd services for gunicorn and Celery (auto-start on reboot)
 7. Runs database migrations and creates an admin account
 
-After install, open `https://<your-server-ip>:8443` and complete the setup wizard.
+After install, open `https://<your-server-ip>:8443` and log in with the admin account created during installation.
+
+## First Login
+
+The installer prompts you to create an admin account. If you pressed Enter to skip the password prompt, the defaults are:
+
+| Field | Value |
+|---|---|
+| Username | `admin` (or whatever you entered) |
+| Password | `Password!` |
+
+You will be **forced to change the password on first login** before you can access anything else. There is no security risk in the default password being known because it cannot be used without immediately setting a new one.
+
+After changing your password you are taken directly into the **Setup Wizard** to connect ProxMigrate to your Proxmox host.
 
 ## First-Run Wizard
 
