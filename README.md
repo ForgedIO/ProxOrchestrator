@@ -129,8 +129,8 @@ OVA import extracts the first VMDK found inside the archive. Multi-disk OVAs (mu
 **ISO storage must have the `iso` content type enabled.**
 In Proxmox go to Datacenter → Storage → select the pool → Edit → Content, and ensure `ISO Image` is ticked. Pools without this content type will not appear in the ISO storage dropdown.
 
-**Boot order after ISO install.**
-Once you have finished installing the OS inside the VM, go to Proxmox → VM → Options → Boot Order and move the CD-ROM below the disk (or remove it). ProxMigrate sets the boot order to `CD-ROM first, then disk` for ISO installs so the installer loads on first boot — you need to change this after installation is complete, otherwise the VM will boot the installer again.
+**Boot order — no manual changes needed after install.**
+ProxMigrate sets the boot order to `disk first, CD-ROM second`. On the first boot the disk is blank so the firmware falls through to the ISO and the installer runs. Once the OS is installed the disk becomes bootable and takes priority automatically — the VM boots from disk on every subsequent start without any manual change. If you ever need to reinstall, move the CD-ROM above the disk in Proxmox (VM → Options → Boot Order).
 
 **VirtIO disk and network drivers during Windows installation.**
 The Windows installer does not include VirtIO drivers. If you select VirtIO-SCSI as the disk bus, the installer will not see the disk. Either:

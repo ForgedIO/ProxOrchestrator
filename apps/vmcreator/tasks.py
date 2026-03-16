@@ -237,8 +237,10 @@ def run_create_pipeline(self, job_id):
             if job.source_type == VmCreateJob.SOURCE_ISO:
                 cdrom_str = f"{job.iso_storage}:iso/{job.iso_filename},media=cdrom"
                 ssh.run_checked(["qm", "set", str(vmid), "--ide2", cdrom_str])
-                # Boot: CD-ROM first, then primary disk
-                boot_order = f"ide2;{disk_bus}0"
+                # Disk first, CD-ROM second. Firmware falls through to ISO when
+                # the disk has nothing bootable (fresh install), and after
+                # install the disk boots automatically without any manual change.
+                boot_order = f"{disk_bus}0;ide2"
             else:
                 boot_order = f"{disk_bus}0"
 
