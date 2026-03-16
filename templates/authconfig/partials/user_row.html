@@ -74,6 +74,10 @@ Context: u (User), current_user (request.user)
             <i class="fas fa-key" style="color:#f59e0b;"></i>
           </button>
         {% endif %}
+        <button class="button is-small is-light" title="Delete user"
+                onclick="confirmDeleteUser({{ u.id }}, '{{ u.username }}')">
+          <i class="fas fa-trash" style="color:#f14668;"></i>
+        </button>
       {% endif %}
     </div>
   </td>
