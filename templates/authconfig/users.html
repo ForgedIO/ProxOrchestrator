@@ -204,6 +204,20 @@
 
 {% block extra_scripts %}
 <script>
+  function confirmDeleteUser(userId, username) {
+    if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/users/' + userId + '/delete/';
+    var csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrfmiddlewaretoken';
+    csrf.value = document.cookie.match(/csrftoken=([^;]+)/)[1];
+    form.appendChild(csrf);
+    document.body.appendChild(form);
+    form.submit();
+  }
+
   var _resetUserId = null;
 
   function showResetPasswordModal(userId, username) {

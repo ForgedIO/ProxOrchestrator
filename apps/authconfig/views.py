@@ -298,6 +298,20 @@ def user_reset_password(request, user_id):
     )
 
 
+@_staff_required
+@require_POST
+def user_delete(request, user_id):
+    user = get_object_or_404(User, pk=user_id)
+    if user == request.user:
+        messages.error(request, "You cannot delete your own account.")
+        return redirect("user_list")
+    username = user.username
+    user.delete()
+    logger.info("User %s deleted by %s", username, request.user)
+    messages.success(request, f"User '{username}' deleted.")
+    return redirect("user_list")
+
+
 @_login_required
 @require_POST
 def change_own_password(request):
