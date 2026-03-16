@@ -118,17 +118,31 @@
             </div>
           </div>
         </div>
-        {% if virtio_iso_configured %}
-        <div class="field" id="virtio-iso-row" style="display:none;">
-          <label class="checkbox">
-            <input type="checkbox" name="attach_virtio_iso" id="attach_virtio_iso" checked>
-            &nbsp;<strong>Attach VirtIO Windows Drivers ISO</strong>
-          </label>
-          <p class="field-hint" style="margin-left:1.5rem;">
-            Attaches the VirtIO driver disc as a CD-ROM (ide2) so drivers can be installed from the Proxmox console.
-          </p>
+        <div id="virtio-iso-row" style="display:none;">
+          {% if virtio_iso_configured %}
+          <div class="field">
+            <label class="checkbox">
+              <input type="checkbox" name="attach_virtio_iso" id="attach_virtio_iso" checked>
+              &nbsp;<strong>Attach VirtIO Windows Drivers ISO as second CD-ROM</strong>
+            </label>
+            <p class="field-hint" style="margin-left:1.5rem;">
+              <i class="fas fa-compact-disc" style="color:#48c78e;margin-right:0.3rem;"></i>
+              <code>{{ virtio_iso }}</code> — attached as ide2 so drivers can be installed
+              from the Proxmox console after the VM boots.
+            </p>
+          </div>
+          {% else %}
+          <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:0.75rem 1rem;font-size:0.82rem;line-height:1.5;">
+            <i class="fas fa-exclamation-triangle" style="color:#d97706;margin-right:0.4rem;"></i>
+            <strong>No VirtIO drivers ISO configured.</strong>
+            Windows VMs need the VirtIO driver package to use high-performance SCSI/network devices.
+            <a href="https://pve.proxmox.com/wiki/Windows_VirtIO_Drivers" target="_blank" rel="noopener" style="color:#0369a1;">
+              Download from the Proxmox wiki <i class="fas fa-external-link-alt" style="font-size:0.7rem;"></i></a>,
+            upload it to your Proxmox ISO storage, then set the path in
+            <a href="/wizard/settings/" style="color:#0369a1;">Proxmox Settings → VM Defaults</a>.
+          </div>
+          {% endif %}
         </div>
-        {% endif %}
       </div>
     </div>
 

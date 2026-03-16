@@ -178,6 +178,7 @@ def configure(request, job_id):
         "network_bridges": network_bridges,
         "suggested_vmid": suggested_vmid,
         "virtio_iso_configured": bool(config.virtio_iso),
+        "virtio_iso": config.virtio_iso or "",
         "help_slug": "vmcreator-configure",
     })
 
