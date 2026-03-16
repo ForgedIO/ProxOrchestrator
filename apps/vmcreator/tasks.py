@@ -226,20 +226,22 @@ def run_create_pipeline(self, job_id):
 
             # Extra disks
             extra_disks_raw = vm_config.get("extra_disks", "")
-            if extra_disks_raw:
-                try:
-                    extra_disks = json.loads(extra_disks_raw) if isinstance(extra_disks_raw, str) else extra_disks_raw
-                except (ValueError, TypeError):
-                    extra_disks = []
+            logger.info("VmCreateJob %d: extra_disks_raw=%r", job.pk, extra_disks_raw)
+            try:
+                extra_disks = json.loads(extra_disks_raw) if isinstance(extra_disks_raw, str) and extra_disks_raw else []
+            except (ValueError, TypeError):
+                extra_disks = []
 
-                for i, disk in enumerate(extra_disks, start=1):
-                    extra_storage = disk.get("storage", storage_pool)
-                    size_gb = max(1, int(disk.get("size_gb", 10)))
-                    slot = f"{disk_bus}{i}"
-                    ssh.run_checked([
-                        "qm", "set", str(vmid),
-                        f"--{slot}", f"{extra_storage}:{size_gb}",
-                    ])
+            for i, disk in enumerate(extra_disks, start=1):
+                extra_storage = disk.get("storage", storage_pool)
+                size_gb = max(1, int(disk.get("size_gb", 10)))
+                slot = f"{disk_bus}{i}"
+                logger.info("VmCreateJob %d: creating extra disk %s on %s (%d GB)",
+                            job.pk, slot, extra_storage, size_gb)
+                ssh.run_checked([
+                    "qm", "set", str(vmid),
+                    f"--{slot}", f"{extra_storage}:{size_gb}",
+                ])
 
             # CD-ROM + boot order
             if job.source_type == VmCreateJob.SOURCE_ISO:
