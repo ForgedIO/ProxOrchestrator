@@ -2,7 +2,7 @@
 
 A free, open-source, self-hosted web UI for Proxmox VE — built for administrators who need to import disk images, create VMs, and manage their virtual infrastructure without logging into the Proxmox web interface.
 
-Made by **[Backup Assure](https://backupassure.com)**.
+Made by **[Backup Assure](https://backupassure.io)**.
 
 ---
 
