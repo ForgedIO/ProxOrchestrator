@@ -277,13 +277,28 @@
         <div class="columns">
           <div class="column">
             <div class="field">
-              <label class="label" style="font-size:0.875rem;font-weight:600;">RAM (MB)</label>
+              <label class="label" style="font-size:0.875rem;font-weight:600;">RAM</label>
               <div class="control has-icons-right">
-                <input class="input" type="number" name="memory_mb"
-                  value="{{ form.memory_mb.value|default:2048 }}" min="64" step="256">
-                <span class="icon is-right" style="color:#b5b5b5;width:3rem;">MB</span>
+                <input class="input" type="number" id="memory-gb-input"
+                  value="{{ form.memory_mb.value|default:2048 }}"
+                  min="1" step="1" style="padding-right:3rem;"
+                  oninput="document.getElementById('memory-mb-hidden').value = Math.round(this.value * 1024);">
+                <span class="icon is-right" style="color:#b5b5b5;width:3rem;pointer-events:none;">GB</span>
+                <input type="hidden" name="memory_mb" id="memory-mb-hidden"
+                  value="{{ form.memory_mb.value|default:2048 }}">
               </div>
-              <p class="field-hint">1 GB = 1024 MB</p>
+              <div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-top:0.4rem;">
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(2)">2 GB</button>
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(4)">4 GB</button>
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(8)">8 GB</button>
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(16)">16 GB</button>
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(24)">24 GB</button>
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(32)">32 GB</button>
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(48)">48 GB</button>
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(64)">64 GB</button>
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(96)">96 GB</button>
+                <button type="button" class="button is-small is-light" style="font-size:0.72rem;padding:0.2rem 0.5rem;" onclick="setMemoryGb(128)">128 GB</button>
+              </div>
             </div>
           </div>
           <div class="column">
@@ -673,6 +688,17 @@
 
   // Init on load
   handleBiosChange(document.getElementById('bios-select').value);
+
+  // ── Memory GB ↔ MB conversion ────────────────────────────────────────────
+  function setMemoryGb(gb) {
+    document.getElementById('memory-gb-input').value = gb;
+    document.getElementById('memory-mb-hidden').value = gb * 1024;
+  }
+  // Convert stored MB value to GB on page load
+  (function() {
+    const mb = parseInt(document.getElementById('memory-mb-hidden').value, 10) || 2048;
+    document.getElementById('memory-gb-input').value = Math.round(mb / 1024 * 10) / 10;
+  })();
 
   // ── Windows VirtIO warning ────────────────────────────────────────────────
   function checkWindowsVirtio() {
