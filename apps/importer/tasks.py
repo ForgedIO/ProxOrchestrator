@@ -172,6 +172,7 @@ def _create_vm_and_import(job, config, remote_qcow2_path, job_id):
     vm_config = job.vm_config
     node = job.node or config.default_node
     assigned_vmid = None
+    remote_dir = config.proxmox_temp_dir.rstrip("/")
 
     # ── 4. CREATING_VM ───────────────────────────────────────────────────────
     job.set_stage(ImportJob.STAGE_CREATING_VM, "Creating VM on Proxmox...", percent=0)
@@ -311,15 +312,95 @@ def _create_vm_and_import(job, config, remote_qcow2_path, job_id):
             extra_disks = []
 
         for i, disk in enumerate(extra_disks, start=1):
+            disk_type = disk.get("type", "new")
             extra_storage = disk.get("storage", storage_pool)
-            size_gb = max(1, int(disk.get("size_gb", 10)))
             slot = f"{disk_bus}{i}"
-            logger.info("ImportJob %d: creating extra disk %s on %s (%d GB)",
-                        job_id, slot, extra_storage, size_gb)
-            ssh.run_checked([
-                "qm", "set", str(vmid),
-                f"--{slot}", f"{extra_storage}:{size_gb}",
-            ])
+
+            if disk_type == "new":
+                size_gb = max(1, int(disk.get("size_gb", 10)))
+                logger.info("ImportJob %d: creating new empty disk %s on %s (%d GB)",
+                            job_id, slot, extra_storage, size_gb)
+                ssh.run_checked([
+                    "qm", "set", str(vmid),
+                    f"--{slot}", f"{extra_storage}:{size_gb}",
+                ])
+
+            elif disk_type == "upload":
+                file_id = disk.get("file_id", "")
+                if not file_id:
+                    logger.warning("ImportJob %d: extra disk %s has no file_id, skipping", job_id, slot)
+                    continue
+                local_extra_path = os.path.join(UPLOAD_ROOT, "extra", file_id)
+                if not os.path.exists(local_extra_path):
+                    logger.warning("ImportJob %d: extra disk file not found: %s", job_id, local_extra_path)
+                    continue
+                logger.info("ImportJob %d: transferring extra disk %s to Proxmox", job_id, slot)
+                extra_unique = uuid.uuid4().hex[:8]
+                remote_extra_src = f"{remote_dir}/{job_id}_{extra_unique}_extra_src"
+                remote_extra_qcow2 = f"{remote_dir}/{job_id}_{extra_unique}_extra.qcow2"
+                with config.get_sftp_client() as sftp:
+                    sftp.put(local_extra_path, remote_extra_src)
+                try:
+                    os.remove(local_extra_path)
+                except OSError:
+                    pass
+                # Convert on Proxmox
+                info_out, _, _ = ssh.run(["qemu-img", "info", "--output=json", remote_extra_src])
+                try:
+                    extra_fmt = json.loads(info_out).get("format", "raw")
+                except (ValueError, KeyError):
+                    extra_fmt = "raw"
+                if extra_fmt == "qcow2":
+                    ssh.run_checked(["mv", remote_extra_src, remote_extra_qcow2])
+                else:
+                    ssh.run_checked(["qemu-img", "convert", "-f", extra_fmt, "-O", "qcow2",
+                                     remote_extra_src, remote_extra_qcow2])
+                    ssh.run(["rm", "-f", remote_extra_src])
+                # Import into storage
+                imp_out, _, _ = ssh.run(["qm", "importdisk", str(vmid),
+                                         remote_extra_qcow2, extra_storage, "--format", "qcow2"])
+                logger.info("ImportJob %d: extra disk importdisk output: %s", job_id, imp_out.strip())
+                # Parse disk ref from qm config
+                cfg_out, _, _ = ssh.run(["qm", "config", str(vmid)])
+                extra_ref = None
+                for cfg_line in cfg_out.splitlines():
+                    if cfg_line.startswith("unused"):
+                        extra_ref = cfg_line.split(":", 1)[1].strip()
+                if extra_ref:
+                    ssh.run_checked(["qm", "set", str(vmid), f"--{slot}", extra_ref])
+                    logger.info("ImportJob %d: attached extra disk as %s: %s", job_id, slot, extra_ref)
+
+            elif disk_type == "proxmox":
+                source_path = disk.get("source_path", "")
+                if not source_path:
+                    logger.warning("ImportJob %d: extra disk %s has no source_path, skipping", job_id, slot)
+                    continue
+                logger.info("ImportJob %d: importing extra disk from Proxmox path %s as %s",
+                            job_id, source_path, slot)
+                # Convert if needed
+                info_out, _, _ = ssh.run(["qemu-img", "info", "--output=json", source_path])
+                try:
+                    extra_fmt = json.loads(info_out).get("format", "raw")
+                except (ValueError, KeyError):
+                    extra_fmt = "raw"
+                extra_unique = uuid.uuid4().hex[:8]
+                if extra_fmt == "qcow2":
+                    qcow2_path = source_path
+                else:
+                    qcow2_path = f"{remote_dir}/{job_id}_{extra_unique}_pve_extra.qcow2"
+                    ssh.run_checked(["qemu-img", "convert", "-f", extra_fmt, "-O", "qcow2",
+                                     source_path, qcow2_path])
+                imp_out, _, _ = ssh.run(["qm", "importdisk", str(vmid),
+                                         qcow2_path, extra_storage, "--format", "qcow2"])
+                logger.info("ImportJob %d: proxmox extra disk importdisk: %s", job_id, imp_out.strip())
+                cfg_out, _, _ = ssh.run(["qm", "config", str(vmid)])
+                extra_ref = None
+                for cfg_line in cfg_out.splitlines():
+                    if cfg_line.startswith("unused"):
+                        extra_ref = cfg_line.split(":", 1)[1].strip()
+                if extra_ref:
+                    ssh.run_checked(["qm", "set", str(vmid), f"--{slot}", extra_ref])
+                    logger.info("ImportJob %d: attached proxmox extra disk as %s: %s", job_id, slot, extra_ref)
 
     # VirtIO Windows driver ISO — attach as ide2 when importing a Windows VM.
     # The ISO reference comes directly from the user's selection in the ISO

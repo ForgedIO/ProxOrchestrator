@@ -389,14 +389,24 @@
         <div style="border-top:1px solid #e8ecf0;margin-top:1.25rem;padding-top:1.25rem;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
             <span style="font-size:0.875rem;font-weight:600;color:#363636;">Additional Disks</span>
-            <button type="button" class="button is-info is-small is-light" id="btn-add-disk">
-              <span class="icon is-small"><i class="fas fa-plus"></i></span>
-              <span>Add Disk</span>
-            </button>
+            <div style="display:flex;gap:0.5rem;">
+              <button type="button" class="button is-info is-small is-light" id="btn-add-disk">
+                <span class="icon is-small"><i class="fas fa-plus"></i></span>
+                <span>New Empty Disk</span>
+              </button>
+              <button type="button" class="button is-info is-small is-light" id="btn-add-upload-disk">
+                <span class="icon is-small"><i class="fas fa-upload"></i></span>
+                <span>Upload Disk Image</span>
+              </button>
+              <button type="button" class="button is-info is-small is-light" id="btn-add-proxmox-disk">
+                <span class="icon is-small"><i class="fas fa-server"></i></span>
+                <span>Browse Proxmox</span>
+              </button>
+            </div>
           </div>
           <div id="extra-disks-list"></div>
-          <p style="font-size:0.78rem;color:#888;margin-top:0.5rem;">
-            Extra disks are created as new empty volumes and attached after the imported disk (slot 1+). Same bus and cache as the primary disk.
+          <p style="font-size:0.78rem;color:#888;margin-top:0.5rem;" id="extra-disks-hint">
+            Add new empty volumes, upload disk images from your computer, or select images already on Proxmox.
           </p>
           <input type="hidden" name="extra_disks" id="extra-disks-data" value="">
         </div>
@@ -639,7 +649,20 @@
     let opts = STORAGE_OPTIONS.map(s =>
       `<option value="${s.value}" ${s.value === selectedValue ? 'selected' : ''}>${s.label}</option>`
     ).join('');
-    return `<select class="select" style="width:100%;" data-role="disk-storage">${opts}</select>`;
+    return `<select class="select is-small" style="width:100%;" data-role="disk-storage">${opts}</select>`;
+  }
+
+  function removeDisk(btn) {
+    btn.closest('.extra-disk-row').remove();
+    renumberDisks();
+    serializeExtraDisks();
+  }
+
+  function renumberDisks() {
+    document.querySelectorAll('.extra-disk-row').forEach((row, i) => {
+      const lbl = row.querySelector('[data-role="disk-label"]');
+      if (lbl) lbl.textContent = `Disk ${i + 1}`;
+    });
   }
 
   function addExtraDisk() {
@@ -647,32 +670,122 @@
     const defaultStorage = STORAGE_OPTIONS.length ? STORAGE_OPTIONS[0].value : '';
     const row = document.createElement('div');
     row.className = 'extra-disk-row';
-    row.dataset.idx = idx;
+    row.dataset.diskType = 'new';
     row.style.cssText = 'display:flex;gap:0.75rem;align-items:center;margin-bottom:0.6rem;background:#f9fafb;border:1px solid #e8ecf0;border-radius:6px;padding:0.6rem 0.75rem;';
     row.innerHTML = `
-      <span style="font-size:0.78rem;color:#888;white-space:nowrap;min-width:3rem;">Disk ${idx}</span>
+      <span style="font-size:0.78rem;color:#888;white-space:nowrap;min-width:3rem;" data-role="disk-label">Disk ${idx}</span>
       <div class="control" style="flex:1;">${buildStorageSelect(defaultStorage)}</div>
-      <div class="control" style="width:130px;">
-        <input class="input" type="number" min="1" max="65536" value="50"
-          placeholder="Size (GB)" data-role="disk-size"
-          style="text-align:right;">
+      <div class="control" style="width:7rem;">
+        <input class="input is-small" type="number" min="1" max="65536" value="50"
+               placeholder="Size (GB)" data-role="disk-size" style="font-size:0.82rem;">
       </div>
-      <span style="font-size:0.78rem;color:#888;">GB</span>
-      <button type="button" class="button is-danger is-small is-light" onclick="removeExtraDisk(this)" title="Remove">
-        <span class="icon is-small"><i class="fas fa-times"></i></span>
-      </button>`;
+      <span style="font-size:0.72rem;color:#9ca3af;white-space:nowrap;">GB</span>
+      <button type="button" class="delete is-small" onclick="removeDisk(this)" title="Remove disk"></button>
+    `;
+    document.getElementById('extra-disks-list').appendChild(row);
+    serializeExtraDisks();
+  }
+
+  function addUploadDisk() {
+    const idx = ++diskCounter;
+    const defaultStorage = STORAGE_OPTIONS.length ? STORAGE_OPTIONS[0].value : '';
+    const row = document.createElement('div');
+    row.className = 'extra-disk-row';
+    row.dataset.diskType = 'upload';
+    row.dataset.fileId = '';
+    row.style.cssText = 'display:flex;gap:0.75rem;align-items:flex-start;margin-bottom:0.6rem;background:#f9fafb;border:1px solid #e8ecf0;border-radius:6px;padding:0.6rem 0.75rem;flex-wrap:wrap;';
+    row.innerHTML = `
+      <span style="font-size:0.78rem;color:#888;white-space:nowrap;min-width:3rem;padding-top:0.3rem;" data-role="disk-label">Disk ${idx}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.4rem;">
+          <label class="button is-info is-small is-light" style="cursor:pointer;margin:0;">
+            <span class="icon is-small"><i class="fas fa-upload"></i></span>
+            <span>Choose file…</span>
+            <input type="file" accept=".qcow2,.vmdk,.vhd,.vhdx,.raw,.img,.ova" data-role="disk-file-input"
+                   style="display:none;" onchange="handleExtraDiskUpload(this)">
+          </label>
+          <div class="control" style="width:9rem;">${buildStorageSelect(defaultStorage)}</div>
+          <button type="button" class="delete is-small" onclick="removeDisk(this)" title="Remove disk"></button>
+        </div>
+        <div data-role="upload-status" style="font-size:0.8rem;color:#9ca3af;">No file selected</div>
+      </div>
+    `;
     document.getElementById('extra-disks-list').appendChild(row);
     renumberDisks();
   }
 
-  function removeExtraDisk(btn) {
-    btn.closest('.extra-disk-row').remove();
+  function addProxmoxDisk() {
+    const idx = ++diskCounter;
+    const defaultStorage = STORAGE_OPTIONS.length ? STORAGE_OPTIONS[0].value : '';
+    const row = document.createElement('div');
+    row.className = 'extra-disk-row';
+    row.dataset.diskType = 'proxmox';
+    row.dataset.sourcePath = '';
+    row.style.cssText = 'display:flex;gap:0.75rem;align-items:flex-start;margin-bottom:0.6rem;background:#f9fafb;border:1px solid #e8ecf0;border-radius:6px;padding:0.6rem 0.75rem;flex-wrap:wrap;';
+    row.innerHTML = `
+      <span style="font-size:0.78rem;color:#888;white-space:nowrap;min-width:3rem;padding-top:0.3rem;" data-role="disk-label">Disk ${idx}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+          <div class="control" style="width:9rem;">${buildStorageSelect(defaultStorage)}</div>
+          <button type="button" class="delete is-small" onclick="removeDisk(this)" title="Remove disk"></button>
+        </div>
+        <div data-role="proxmox-browser"
+             hx-get="/wizard/proxmox-disk-browser/"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+          <div style="font-size:0.8rem;color:#9ca3af;"><i class="fas fa-spinner fa-spin" style="margin-right:0.3rem;"></i>Loading…</div>
+        </div>
+        <div data-role="proxmox-selection" style="font-size:0.78rem;color:#6b7280;margin-top:0.4rem;display:none;">
+          Selected: <span data-role="selected-filename" style="font-weight:600;"></span>
+        </div>
+      </div>
+    `;
+    document.getElementById('extra-disks-list').appendChild(row);
     renumberDisks();
+    // Process HTMX on the new element
+    htmx.process(row);
+    // Listen for radio selection inside this row
+    row.addEventListener('change', function(e) {
+      if (e.target.classList.contains('proxmox-disk-choice')) {
+        row.dataset.sourcePath = e.target.value;
+        const fname = e.target.closest('label').querySelector('span').textContent.trim();
+        row.querySelector('[data-role="proxmox-selection"]').style.display = '';
+        row.querySelector('[data-role="selected-filename"]').textContent = fname;
+        serializeExtraDisks();
+      }
+    });
   }
 
-  function renumberDisks() {
-    document.querySelectorAll('.extra-disk-row').forEach((row, i) => {
-      row.querySelector('span').textContent = `Disk ${i + 1}`;
+  function handleExtraDiskUpload(input) {
+    const row = input.closest('.extra-disk-row');
+    const statusEl = row.querySelector('[data-role="upload-status"]');
+    const file = input.files[0];
+    if (!file) return;
+
+    statusEl.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:0.3rem;"></i>Uploading…';
+
+    const formData = new FormData();
+    formData.append('extra_disk_file', file);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+    fetch('{% url "importer_upload_extra_disk" job.id %}', {
+      method: 'POST',
+      body: formData,
+    })
+    .then(r => r.text())
+    .then(html => {
+      statusEl.innerHTML = html;
+      // Extract file_id from the hidden input in the returned HTML
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      const fileIdInput = tmp.querySelector('.extra-disk-file-id');
+      if (fileIdInput) {
+        row.dataset.fileId = fileIdInput.value;
+      }
+      serializeExtraDisks();
+    })
+    .catch(() => {
+      statusEl.innerHTML = '<span style="color:#cc0f35;">Upload failed. Please try again.</span>';
     });
   }
 
@@ -680,13 +793,25 @@
     const disks = [];
     document.querySelectorAll('.extra-disk-row').forEach(row => {
       const storage = row.querySelector('[data-role="disk-storage"]').value;
-      const size = parseInt(row.querySelector('[data-role="disk-size"]').value, 10) || 10;
-      disks.push({ storage, size_gb: size });
+      const dtype = row.dataset.diskType || 'new';
+
+      if (dtype === 'new') {
+        const size = parseInt(row.querySelector('[data-role="disk-size"]').value, 10) || 10;
+        disks.push({ type: 'new', storage, size_gb: size });
+      } else if (dtype === 'upload') {
+        const fileId = row.dataset.fileId || '';
+        if (fileId) disks.push({ type: 'upload', storage, file_id: fileId });
+      } else if (dtype === 'proxmox') {
+        const sourcePath = row.dataset.sourcePath || '';
+        if (sourcePath) disks.push({ type: 'proxmox', storage, source_path: sourcePath });
+      }
     });
     document.getElementById('extra-disks-data').value = JSON.stringify(disks);
   }
 
   document.getElementById('btn-add-disk').addEventListener('click', addExtraDisk);
+  document.getElementById('btn-add-upload-disk').addEventListener('click', addUploadDisk);
+  document.getElementById('btn-add-proxmox-disk').addEventListener('click', addProxmoxDisk);
   document.getElementById('configure-form').addEventListener('submit', serializeExtraDisks);
 
   // Show/hide VirtIO ISO picker based on OS type; trigger HTMX load on first reveal

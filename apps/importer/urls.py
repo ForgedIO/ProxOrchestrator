@@ -17,4 +17,5 @@ urlpatterns = [
     path("storage/delete-proxmox/", storage_views.delete_proxmox_file, name="storage_delete_proxmox"),
     path("storage/create-from-existing/", storage_views.create_job_from_existing, name="storage_create_from_existing"),
     path("storage/create-from-proxmox/", storage_views.create_job_from_proxmox, name="storage_create_from_proxmox"),
+    path("<int:job_id>/upload-extra-disk/", views.upload_extra_disk, name="importer_upload_extra_disk"),
 ]

@@ -15,4 +15,5 @@ urlpatterns = [
     path("step/6/", views.step6, name="wizard_step6"),
     path("virtio-scan/", views.virtio_scan, name="wizard_virtio_scan"),
     path("iso-list/", views.iso_list, name="wizard_iso_list"),
+    path("proxmox-disk-browser/", views.proxmox_disk_browser, name="wizard_proxmox_disk_browser"),
 ]

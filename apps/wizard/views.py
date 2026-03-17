@@ -732,3 +732,45 @@ def iso_list(request):
         "default_ref": default_ref,
         "error": error,
     })
+
+
+@login_required
+def proxmox_disk_browser(request):
+    """HTMX endpoint: list disk image files in the Proxmox temp directory.
+
+    Returns an HTML partial with a radio-button list of files the user
+    can select as the source for an extra disk import.
+    """
+    config = _get_or_create_config()
+    files = []
+    error = None
+
+    if not config.host:
+        error = "Proxmox not configured yet."
+    else:
+        temp_dir = (config.proxmox_temp_dir or "/var/tmp").rstrip("/")
+        try:
+            with config.get_ssh_client() as ssh:
+                out, _err, rc = ssh.run(["find", temp_dir, "-maxdepth", "1",
+                                         "-type", "f",
+                                         "-name", "*.qcow2",
+                                         "-o", "-name", "*.vmdk",
+                                         "-o", "-name", "*.raw",
+                                         "-o", "-name", "*.img",
+                                         "-o", "-name", "*.vhd",
+                                         "-o", "-name", "*.vhdx"])
+                if rc == 0:
+                    for line in sorted(out.splitlines()):
+                        path = line.strip()
+                        if not path:
+                            continue
+                        filename = path.rsplit("/", 1)[-1]
+                        files.append({"path": path, "filename": filename})
+        except Exception as exc:
+            error = str(exc)
+            logger.warning("proxmox_disk_browser SSH error: %s", exc)
+
+    return render(request, "wizard/partials/proxmox_disk_browser.html", {
+        "files": files,
+        "error": error,
+    })

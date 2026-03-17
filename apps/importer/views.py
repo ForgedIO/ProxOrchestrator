@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import shutil
 import uuid
 
 from django.conf import settings
@@ -235,3 +236,47 @@ def resume_job(request, job_id):
     """Resume a stopped import job by returning to the configure page."""
     job = get_object_or_404(ImportJob, pk=job_id)
     return redirect("importer_configure", job_id=job.pk)
+
+
+@login_required
+@require_POST
+def upload_extra_disk(request, job_id):
+    """HTMX endpoint: accept a single disk image file for an extra disk slot.
+
+    Saves the file under UPLOAD_ROOT/extra/<job_id>/<uuid>/<filename>.
+    Returns an HTML partial with the file reference for the JS to store.
+    """
+    job = get_object_or_404(ImportJob, pk=job_id)
+    uploaded = request.FILES.get("extra_disk_file")
+
+    if not uploaded:
+        return HttpResponse(
+            '<span style="color:#cc0f35;">No file received.</span>', status=400
+        )
+
+    _name, ext = os.path.splitext(uploaded.name.lower())
+    if ext not in ALLOWED_EXTENSIONS:
+        return HttpResponse(
+            f'<span style="color:#cc0f35;">Unsupported file type: {ext}</span>',
+            status=400,
+        )
+
+    file_uuid = str(uuid.uuid4())
+    dest_dir = os.path.join(UPLOAD_ROOT, "extra", str(job_id), file_uuid)
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = os.path.join(dest_dir, uploaded.name)
+
+    with open(dest_path, "wb") as out:
+        for chunk in uploaded.chunks():
+            out.write(chunk)
+
+    logger.info("Extra disk upload for job %d: saved %s", job_id, dest_path)
+
+    # file_id encodes enough to reconstruct the path: "<job_id>/<uuid>/<filename>"
+    file_id = f"{job_id}/{file_uuid}/{uploaded.name}"
+
+    return render(request, "importer/partials/extra_disk_uploaded.html", {
+        "file_id": file_id,
+        "filename": uploaded.name,
+        "size_mb": round(uploaded.size / 1024 / 1024, 1),
+    })
