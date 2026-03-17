@@ -349,12 +349,10 @@ def _create_vm_and_import(job, config, remote_qcow2_path, job_id):
             logger.warning("ImportJob %d: start_vm failed: %s", job_id, exc)
 
     # ── 8. CLEANUP ───────────────────────────────────────────────────────────
-    job.set_stage(ImportJob.STAGE_CLEANUP, "Cleaning up temporary files...")
-    try:
-        with config.get_sftp_client() as sftp:
-            sftp.remove(remote_qcow2_path)
-    except Exception as exc:
-        logger.warning("ImportJob %d: could not remove remote temp file: %s", job_id, exc)
+    # The converted qcow2 is left on Proxmox intentionally — it can be used
+    # to create additional VMs directly from the Proxmox "Create VM" wizard
+    # without re-uploading. Users can delete it manually from the storage pool.
+    job.set_stage(ImportJob.STAGE_CLEANUP, "Finalising...")
 
     # ── 9. DONE ──────────────────────────────────────────────────────────────
     job.set_stage(ImportJob.STAGE_DONE, f"VM {vmid} created successfully.", percent=100)
