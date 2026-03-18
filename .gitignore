@@ -19,6 +19,7 @@ sdist/
 develop-eggs/
 .installed.cfg
 lib/
+!static/novnc/vendor/pako/lib/
 lib64/
 wheels/
 
