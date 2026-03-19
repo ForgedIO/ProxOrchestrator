@@ -26,18 +26,30 @@ ALLOWED_ISO_EXT = {".iso"}
 
 
 def _get_env_data(config):
-    """Return (nodes, storage_pools, network_bridges, node_choices, storage_choices, bridge_choices)."""
+    """Return (nodes, storage_pools, network_bridges, node_choices, storage_choices, bridge_choices).
+
+    storage_choices is filtered to storage pools that support the 'images' content type,
+    which is required for VM disks and cloud-init drives.
+    """
     nodes, storage_pools, network_bridges = [], [], []
     node_choices, storage_choices, bridge_choices = [], [], []
     try:
         env = DiscoveredEnvironment.objects.get(config=config)
         nodes = [n["node"] for n in env.nodes]
         node_choices = [(n, n) for n in nodes]
+
+        # Only include storage pools that support VM disk images.
+        # ISO-only, backup, and vztmpl pools cannot hold VM disks or cloud-init drives.
+        images_pools = [
+            s for s in env.storage_pools
+            if "images" in s.get("content", "").split(",")
+        ]
         storage_pools = [
             {"storage": s["storage"], "avail_gb": (s.get("avail", 0) or 0) / 1024 ** 3}
-            for s in env.storage_pools
+            for s in images_pools
         ]
-        storage_choices = [(s["storage"], s["storage"]) for s in env.storage_pools]
+        storage_choices = [(s["storage"], s["storage"]) for s in images_pools]
+
         all_bridges = [n["iface"] for n in env.networks]
         vmbr = [b for b in all_bridges if b.startswith("vmbr")]
         network_bridges = vmbr if vmbr else all_bridges

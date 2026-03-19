@@ -98,16 +98,22 @@ def configure(request, job_id):
     try:
         env = DiscoveredEnvironment.objects.get(config=config)
         node_choices = [(n["node"], n["node"]) for n in env.nodes]
-        storage_choices = [(s["storage"], s["storage"]) for s in env.storage_pools]
         bridge_choices = [(n["iface"], n["iface"]) for n in env.networks]
 
+        # Only offer storage pools that support VM disk images.
+        # ISO-only, backup, and vztmpl pools cannot hold imported disks.
+        images_pools = [
+            s for s in env.storage_pools
+            if "images" in s.get("content", "").split(",")
+        ]
+        storage_choices = [(s["storage"], s["storage"]) for s in images_pools]
         nodes = [n["node"] for n in env.nodes]
         storage_pools = [
             {
                 "storage": s["storage"],
                 "avail_gb": (s.get("avail", 0) or 0) / 1024**3,
             }
-            for s in env.storage_pools
+            for s in images_pools
         ]
         # Prefer vmbr* bridges, fall back to all
         all_bridges = [n["iface"] for n in env.networks]
