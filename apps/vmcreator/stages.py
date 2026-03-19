@@ -115,6 +115,14 @@ EXPORT_STAGES = [
     ("PACKAGING",          "Packaging Archive"),
 ]
 
+EXPORT_STAGES_WITH_SHUTDOWN = [
+    ("READING_CONFIG",     "Reading VM Config"),
+    ("SHUTTING_DOWN",      "Shutting Down VM"),
+    ("EXPORTING_DISKS",    "Exporting Disks"),
+    ("BUILDING_MANIFEST",  "Building Manifest"),
+    ("PACKAGING",          "Packaging Archive"),
+]
+
 PX_IMPORT_STAGES = [
     ("TRANSFERRING",   "Transferring Disks to Proxmox"),
     ("CREATING_VM",    "Creating VM"),

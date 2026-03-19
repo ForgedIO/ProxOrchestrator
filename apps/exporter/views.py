@@ -20,6 +20,7 @@ from apps.exporter.models import ExportJob
 from apps.exporter.models import PxImportJob
 from apps.importer.forms import VMConfigForm
 from apps.vmcreator.stages import EXPORT_STAGES
+from apps.vmcreator.stages import EXPORT_STAGES_WITH_SHUTDOWN
 from apps.vmcreator.stages import PX_IMPORT_STAGES
 from apps.vmcreator.stages import build_stages
 from apps.wizard.models import DiscoveredEnvironment
@@ -66,6 +67,15 @@ def _parse_manifest(px_path):
     return manifest
 
 
+def _export_stage_list(job):
+    """Return the correct stage list for an export job based on its export mode."""
+    opts = job.vm_config
+    export_mode = opts.get("export_mode", opts.get("_export_opts", {}).get("export_mode", "live"))
+    if export_mode == "shutdown":
+        return EXPORT_STAGES_WITH_SHUTDOWN
+    return EXPORT_STAGES
+
+
 # ── Export views ──────────────────────────────────────────────────────────────
 
 @login_required
@@ -81,9 +91,47 @@ def export_index(request):
 
 
 @login_required
+def export_options(request, vmid):
+    """Smart pre-export options page — adapts to OS type and guest agent status."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+
+    vm_name = str(vmid)
+    os_type = "l26"
+    agent_enabled = False
+    is_running = False
+    api_error = None
+
+    try:
+        api = config.get_api_client()
+        raw_config = api.get_vm_config(node, vmid)
+        vm_status = api.get_vm_status(node, vmid)
+        vm_name = raw_config.get("name", str(vmid))
+        os_type = raw_config.get("ostype", "l26")
+        agent_enabled = "enabled=1" in raw_config.get("agent", "")
+        is_running = vm_status.get("status") == "running"
+    except Exception as exc:
+        api_error = str(exc)
+        logger.warning("export_options: could not fetch VM info for %d: %s", vmid, exc)
+
+    is_windows = os_type.startswith("win")
+
+    return render(request, "exporter/export_options.html", {
+        "vmid": vmid,
+        "vm_name": vm_name,
+        "os_type": os_type,
+        "is_windows": is_windows,
+        "agent_enabled": agent_enabled,
+        "is_running": is_running,
+        "api_error": api_error,
+        "help_slug": "exporter-options",
+    })
+
+
+@login_required
 @require_POST
 def export_trigger(request, vmid):
-    """Create an ExportJob for vmid and kick off the Celery pipeline."""
+    """Create an ExportJob with the chosen export mode and kick off the pipeline."""
     config = ProxmoxConfig.get_config()
 
     # Prevent duplicate in-progress exports for the same VM
@@ -93,9 +141,16 @@ def export_trigger(request, vmid):
     if existing:
         return redirect("export_progress", job_id=existing.pk)
 
+    export_mode = request.POST.get("export_mode", "live")
+    restart_after = request.POST.get("restart_after") == "on"
+
     job = ExportJob.objects.create(
         vmid=vmid,
         node=config.default_node or "",
+        vm_config_json=json.dumps({
+            "export_mode": export_mode,
+            "restart_after": restart_after,
+        }),
         created_by=request.user if request.user.is_authenticated else None,
     )
 
@@ -109,7 +164,8 @@ def export_trigger(request, vmid):
 def export_progress(request, job_id):
     """Progress page for an export job."""
     job = get_object_or_404(ExportJob, pk=job_id)
-    stages, stages_done_count = build_stages(job, EXPORT_STAGES)
+    stage_list = _export_stage_list(job)
+    stages, stages_done_count = build_stages(job, stage_list)
     return render(request, "exporter/export_progress.html", {
         "job": job,
         "stages": stages,
@@ -122,7 +178,8 @@ def export_progress(request, job_id):
 def export_status(request, job_id):
     """HTMX polling partial for export job."""
     job = get_object_or_404(ExportJob, pk=job_id)
-    stages, stages_done_count = build_stages(job, EXPORT_STAGES)
+    stage_list = _export_stage_list(job)
+    stages, stages_done_count = build_stages(job, stage_list)
     response = render(request, "exporter/partials/export_job_status.html", {
         "job": job,
         "stages": stages,

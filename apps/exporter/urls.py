@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     # Export
     path("", views.export_index, name="export_index"),
+    path("options/<int:vmid>/", views.export_options, name="export_options"),
     path("trigger/<int:vmid>/", views.export_trigger, name="export_trigger"),
     path("<int:job_id>/progress/", views.export_progress, name="export_progress"),
     path("<int:job_id>/status/", views.export_status, name="export_status"),

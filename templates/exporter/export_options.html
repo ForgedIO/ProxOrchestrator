@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}Export {{ vm_name }} — ProxMigrate{% endblock %}
+{% block page_title %}Export VM{% endblock %}
+{% block help_slug %}exporter-options{% endblock %}
+
+{% block page_actions %}
+  <a href="javascript:history.back()" class="button is-light is-small">
+    <span class="icon is-small"><i class="fas fa-arrow-left"></i></span>
+    <span>Back</span>
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="columns">
+  <div class="column is-7">
+
+    {% if api_error %}
+      <div class="notification is-warning is-light" style="margin-bottom:1.25rem;">
+        <i class="fas fa-exclamation-triangle" style="margin-right:0.5rem;"></i>
+        Could not fetch live VM info — using defaults. ({{ api_error }})
+      </div>
+    {% endif %}
+
+    {# ── VM summary card ── #}
+    <div class="proxmigrate-card" style="margin-bottom:1.5rem;">
+      <div class="card-body" style="padding:1.25rem 1.5rem;">
+        <div style="display:flex;align-items:center;gap:1rem;">
+          <div style="width:44px;height:44px;border-radius:8px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="fas fa-server" style="color:#3273dc;font-size:1.1rem;"></i>
+          </div>
+          <div>
+            <div style="font-weight:700;color:#1a1a2e;font-size:1rem;">{{ vm_name }}</div>
+            <div style="font-size:0.82rem;color:#7a7a7a;margin-top:0.2rem;">
+              VMID {{ vmid }}
+              &nbsp;&bull;&nbsp;
+              {% if is_windows %}
+                <i class="fab fa-windows" style="margin-right:0.2rem;color:#0078d4;"></i>Windows
+              {% else %}
+                <i class="fab fa-linux" style="margin-right:0.2rem;color:#555;"></i>Linux / Other
+              {% endif %}
+              &nbsp;&bull;&nbsp;
+              {% if is_running %}
+                <span style="color:#48c78e;font-weight:600;"><i class="fas fa-circle" style="font-size:0.5rem;vertical-align:middle;margin-right:0.25rem;"></i>Running</span>
+              {% else %}
+                <span style="color:#7a7a7a;"><i class="fas fa-circle" style="font-size:0.5rem;vertical-align:middle;margin-right:0.25rem;"></i>Stopped</span>
+              {% endif %}
+              {% if agent_enabled %}
+                &nbsp;&bull;&nbsp;<i class="fas fa-plug" style="color:#48c78e;margin-right:0.2rem;"></i>Guest agent active
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Export options form ── #}
+    <form method="post" action="{% url 'export_trigger' vmid %}">
+      {% csrf_token %}
+
+      <div class="proxmigrate-card">
+        <div class="card-header">
+          <i class="fas fa-sliders-h" style="color:#3273dc;"></i> Export Options
+        </div>
+        <div class="card-body">
+
+          {# ── Windows ─────────────────────────────────────────────────────── #}
+          {% if is_windows %}
+
+            <div class="notification is-warning is-light" style="margin-bottom:1.25rem;border-radius:8px;">
+              <i class="fas fa-exclamation-triangle" style="margin-right:0.5rem;"></i>
+              <strong>Windows VM detected.</strong> A live export of a running Windows VM may produce
+              an inconsistent disk image due to in-memory state, unflushed registry writes, and open
+              database transactions. Shutdown before export is strongly recommended.
+            </div>
+
+            {# Mode selection #}
+            <div style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1.5rem;">
+
+              <label class="export-mode-card is-selected" id="mode-card-shutdown" onclick="selectMode('shutdown')"
+                style="display:flex;align-items:flex-start;gap:1rem;border:2px solid #3273dc;border-radius:10px;padding:1rem 1.25rem;cursor:pointer;background:#f0f7ff;transition:all 0.15s;">
+                <input type="radio" name="export_mode" value="shutdown" id="mode-shutdown" checked style="margin-top:0.2rem;accent-color:#3273dc;">
+                <div>
+                  <div style="font-weight:700;color:#1a1a2e;font-size:0.92rem;">
+                    <i class="fas fa-power-off" style="color:#3273dc;margin-right:0.4rem;"></i>
+                    Shutdown before export
+                    <span style="font-size:0.72rem;background:#3273dc;color:#fff;padding:0.1rem 0.45rem;border-radius:4px;margin-left:0.4rem;">Recommended</span>
+                  </div>
+                  <div style="font-size:0.82rem;color:#555;margin-top:0.3rem;line-height:1.5;">
+                    Gracefully shuts down the VM, exports a clean consistent image, then optionally restarts.
+                    Safest for Windows — avoids NTFS dirty flags and registry inconsistencies.
+                  </div>
+                </div>
+              </label>
+
+              <label class="export-mode-card" id="mode-card-live" onclick="selectMode('live')"
+                style="display:flex;align-items:flex-start;gap:1rem;border:2px solid #e8ecf0;border-radius:10px;padding:1rem 1.25rem;cursor:pointer;transition:all 0.15s;">
+                <input type="radio" name="export_mode" value="live" id="mode-live" style="margin-top:0.2rem;accent-color:#3273dc;">
+                <div>
+                  <div style="font-weight:700;color:#1a1a2e;font-size:0.92rem;">
+                    <i class="fas fa-exclamation-triangle" style="color:#f59e0b;margin-right:0.4rem;"></i>
+                    Live export (crash-consistent)
+                  </div>
+                  <div style="font-size:0.82rem;color:#555;margin-top:0.3rem;line-height:1.5;">
+                    Exports the disk while the VM is running. No downtime, but Windows may require
+                    <code>chkdsk</code> on next boot. Not recommended for production Windows VMs.
+                  </div>
+                </div>
+              </label>
+
+            </div>
+
+          {# ── Linux with guest agent ──────────────────────────────────────── #}
+          {% elif agent_enabled %}
+
+            <div style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1.5rem;">
+
+              <label class="export-mode-card is-selected" id="mode-card-freeze" onclick="selectMode('freeze')"
+                style="display:flex;align-items:flex-start;gap:1rem;border:2px solid #3273dc;border-radius:10px;padding:1rem 1.25rem;cursor:pointer;background:#f0f7ff;transition:all 0.15s;">
+                <input type="radio" name="export_mode" value="freeze" id="mode-freeze" checked style="margin-top:0.2rem;accent-color:#3273dc;">
+                <div>
+                  <div style="font-weight:700;color:#1a1a2e;font-size:0.92rem;">
+                    <i class="fas fa-snowflake" style="color:#3273dc;margin-right:0.4rem;"></i>
+                    Filesystem freeze
+                    <span style="font-size:0.72rem;background:#3273dc;color:#fff;padding:0.1rem 0.45rem;border-radius:4px;margin-left:0.4rem;">Recommended</span>
+                  </div>
+                  <div style="font-size:0.82rem;color:#555;margin-top:0.3rem;line-height:1.5;">
+                    Uses the QEMU guest agent to freeze filesystem I/O during the disk copy, then
+                    thaws immediately after. Produces a consistent image with no reboot required.
+                    I/O is paused for the duration of the export — suitable for most workloads.
+                  </div>
+                </div>
+              </label>
+
+              <label class="export-mode-card" id="mode-card-shutdown" onclick="selectMode('shutdown')"
+                style="display:flex;align-items:flex-start;gap:1rem;border:2px solid #e8ecf0;border-radius:10px;padding:1rem 1.25rem;cursor:pointer;transition:all 0.15s;">
+                <input type="radio" name="export_mode" value="shutdown" id="mode-shutdown" style="margin-top:0.2rem;accent-color:#3273dc;">
+                <div>
+                  <div style="font-weight:700;color:#1a1a2e;font-size:0.92rem;">
+                    <i class="fas fa-power-off" style="color:#7a7a7a;margin-right:0.4rem;"></i>
+                    Shutdown before export
+                  </div>
+                  <div style="font-size:0.82rem;color:#555;margin-top:0.3rem;line-height:1.5;">
+                    Cleanest possible export — no in-memory state. Causes VM downtime for the
+                    duration of the export. Recommended for large VMs with heavy database workloads.
+                  </div>
+                </div>
+              </label>
+
+              <label class="export-mode-card" id="mode-card-live" onclick="selectMode('live')"
+                style="display:flex;align-items:flex-start;gap:1rem;border:2px solid #e8ecf0;border-radius:10px;padding:1rem 1.25rem;cursor:pointer;transition:all 0.15s;">
+                <input type="radio" name="export_mode" value="live" id="mode-live" style="margin-top:0.2rem;accent-color:#3273dc;">
+                <div>
+                  <div style="font-weight:700;color:#1a1a2e;font-size:0.92rem;">
+                    <i class="fas fa-bolt" style="color:#f59e0b;margin-right:0.4rem;"></i>
+                    Live export (crash-consistent)
+                  </div>
+                  <div style="font-size:0.82rem;color:#555;margin-top:0.3rem;line-height:1.5;">
+                    No freeze, no downtime. Linux journals recover cleanly on boot.
+                    Fastest option — good for development VMs or stateless workloads.
+                  </div>
+                </div>
+              </label>
+
+            </div>
+
+          {# ── Linux without guest agent / other ───────────────────────────── #}
+          {% else %}
+
+            <div class="notification is-info is-light" style="margin-bottom:1.25rem;border-radius:8px;">
+              <i class="fas fa-info-circle" style="margin-right:0.5rem;"></i>
+              QEMU guest agent not detected. Filesystem freeze is unavailable — shutdown or live export only.
+              <a href="https://pve.proxmox.com/wiki/Qemu-guest-agent" target="_blank" style="margin-left:0.5rem;">
+                Install guest agent <i class="fas fa-external-link-alt" style="font-size:0.7rem;"></i>
+              </a>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1.5rem;">
+
+              <label class="export-mode-card" id="mode-card-shutdown" onclick="selectMode('shutdown')"
+                style="display:flex;align-items:flex-start;gap:1rem;border:2px solid #e8ecf0;border-radius:10px;padding:1rem 1.25rem;cursor:pointer;transition:all 0.15s;">
+                <input type="radio" name="export_mode" value="shutdown" id="mode-shutdown" style="margin-top:0.2rem;accent-color:#3273dc;">
+                <div>
+                  <div style="font-weight:700;color:#1a1a2e;font-size:0.92rem;">
+                    <i class="fas fa-power-off" style="color:#7a7a7a;margin-right:0.4rem;"></i>
+                    Shutdown before export
+                  </div>
+                  <div style="font-size:0.82rem;color:#555;margin-top:0.3rem;line-height:1.5;">
+                    Cleanest export — shuts the VM down, exports, optionally restarts.
+                  </div>
+                </div>
+              </label>
+
+              <label class="export-mode-card is-selected" id="mode-card-live" onclick="selectMode('live')"
+                style="display:flex;align-items:flex-start;gap:1rem;border:2px solid #3273dc;border-radius:10px;padding:1rem 1.25rem;cursor:pointer;background:#f0f7ff;transition:all 0.15s;">
+                <input type="radio" name="export_mode" value="live" id="mode-live" checked style="margin-top:0.2rem;accent-color:#3273dc;">
+                <div>
+                  <div style="font-weight:700;color:#1a1a2e;font-size:0.92rem;">
+                    <i class="fas fa-bolt" style="color:#3273dc;margin-right:0.4rem;"></i>
+                    Live export (crash-consistent)
+                    <span style="font-size:0.72rem;background:#3273dc;color:#fff;padding:0.1rem 0.45rem;border-radius:4px;margin-left:0.4rem;">Default</span>
+                  </div>
+                  <div style="font-size:0.82rem;color:#555;margin-top:0.3rem;line-height:1.5;">
+                    No downtime. Linux journaled filesystems (ext4, xfs, btrfs) replay cleanly on boot.
+                    Good for most Linux VMs without heavy database workloads.
+                  </div>
+                </div>
+              </label>
+
+            </div>
+
+          {% endif %}
+
+          {# ── Restart after export (shown only when shutdown mode is active) ── #}
+          <div id="restart-option" style="{% if not is_windows %}display:none;{% endif %}padding:0.75rem 1rem;background:#f8f9fa;border:1px solid #e8ecf0;border-radius:8px;margin-bottom:1rem;">
+            <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;">
+              <input type="checkbox" name="restart_after" id="restart-after-check" checked style="accent-color:#3273dc;">
+              <span style="font-size:0.875rem;font-weight:600;color:#1a1a2e;">Restart VM after export completes</span>
+            </label>
+            <p style="font-size:0.78rem;color:#7a7a7a;margin:0.25rem 0 0 1.6rem;">
+              The VM will be started again automatically once the export archive is ready.
+            </p>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:0.5rem;">
+            <a href="javascript:history.back()" class="button is-light is-medium" style="font-weight:600;">Cancel</a>
+            <button type="submit" class="button is-info is-medium" style="font-weight:600;">
+              <span class="icon"><i class="fas fa-file-export"></i></span>
+              <span>Start Export</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </form>
+
+  </div>
+
+  {# Right column: help card #}
+  <div class="column is-5">
+    <div class="proxmigrate-card">
+      <div class="card-header">
+        <i class="fas fa-info-circle" style="color:#3273dc;"></i> Export Modes Explained
+      </div>
+      <div class="card-body" style="font-size:0.84rem;color:#555;line-height:1.7;">
+
+        <div style="margin-bottom:1rem;">
+          <div style="font-weight:700;color:#1a1a2e;margin-bottom:0.25rem;">
+            <i class="fas fa-power-off" style="width:1.1rem;color:#3273dc;"></i> Shutdown
+          </div>
+          <p>Cleanest option. The VM is gracefully stopped, the disk is copied to a qcow2, then the
+          VM is optionally restarted. No dirty data, no journal replay — identical to a clean shutdown
+          and backup. Best for production databases (MySQL, PostgreSQL, SQL Server) and Windows.</p>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+          <div style="font-weight:700;color:#1a1a2e;margin-bottom:0.25rem;">
+            <i class="fas fa-snowflake" style="width:1.1rem;color:#3273dc;"></i> Filesystem Freeze
+          </div>
+          <p>Uses the QEMU guest agent to pause all disk I/O before copying starts, then resumes
+          immediately after. The VM stays running — users won't notice a reboot — but applications
+          will stall briefly during the copy. Duration depends on disk size.</p>
+          <p style="font-size:0.78rem;color:#888;margin-top:0.3rem;">Requires QEMU guest agent installed and running in the VM.</p>
+        </div>
+
+        <div>
+          <div style="font-weight:700;color:#1a1a2e;margin-bottom:0.25rem;">
+            <i class="fas fa-bolt" style="width:1.1rem;color:#f59e0b;"></i> Live (crash-consistent)
+          </div>
+          <p>Fastest — no downtime at all. Reads the disk while the VM runs, equivalent to an
+          unexpected power cut at that moment. Linux journaled filesystems recover automatically
+          on next boot. Not recommended for Windows or active databases.</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+  function selectMode(mode) {
+    // Update radio inputs
+    document.querySelectorAll('input[name=export_mode]').forEach(r => {
+      r.checked = r.value === mode;
+    });
+
+    // Update card visual styles
+    const cards = {
+      'shutdown': document.getElementById('mode-card-shutdown'),
+      'freeze':   document.getElementById('mode-card-freeze'),
+      'live':     document.getElementById('mode-card-live'),
+    };
+    Object.entries(cards).forEach(([k, el]) => {
+      if (!el) return;
+      if (k === mode) {
+        el.style.borderColor = '#3273dc';
+        el.style.background  = '#f0f7ff';
+      } else {
+        el.style.borderColor = '#e8ecf0';
+        el.style.background  = '';
+      }
+    });
+
+    // Show/hide restart option
+    const restartOpt = document.getElementById('restart-option');
+    if (restartOpt) {
+      restartOpt.style.display = mode === 'shutdown' ? '' : 'none';
+    }
+  }
+</script>
+{% endblock %}
+{% endblock %}

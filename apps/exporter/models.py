@@ -12,6 +12,7 @@ class ExportJob(models.Model):
 
     STAGE_QUEUED = "QUEUED"
     STAGE_READING_CONFIG = "READING_CONFIG"
+    STAGE_SHUTTING_DOWN = "SHUTTING_DOWN"
     STAGE_EXPORTING_DISKS = "EXPORTING_DISKS"
     STAGE_BUILDING_MANIFEST = "BUILDING_MANIFEST"
     STAGE_PACKAGING = "PACKAGING"
@@ -21,6 +22,7 @@ class ExportJob(models.Model):
     STAGE_CHOICES = [
         (STAGE_QUEUED, "Queued"),
         (STAGE_READING_CONFIG, "Reading Config"),
+        (STAGE_SHUTTING_DOWN, "Shutting Down"),
         (STAGE_EXPORTING_DISKS, "Exporting Disks"),
         (STAGE_BUILDING_MANIFEST, "Building Manifest"),
         (STAGE_PACKAGING, "Packaging Archive"),

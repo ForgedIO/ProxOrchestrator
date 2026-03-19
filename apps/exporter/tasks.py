@@ -5,6 +5,7 @@ import re
 import shlex
 import shutil
 import tarfile
+import time
 import uuid
 from datetime import datetime
 from datetime import timedelta
@@ -256,11 +257,36 @@ def _build_manifest(vmid, vm_name, raw_config, disks):
     }
 
 
+def _wait_for_vm_stopped(api, node, vmid, timeout=300):
+    """Poll until VM status is 'stopped' or timeout (seconds) expires.
+
+    Returns True if stopped, False on timeout.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            status = api.get_vm_status(node, vmid)
+            if status.get("status") == "stopped":
+                return True
+        except Exception:
+            pass
+        time.sleep(5)
+    return False
+
+
 @shared_task(bind=True, name="exporter.run_export_pipeline")
 def run_export_pipeline(self, job_id):
     """Export a Proxmox VM as a portable .px archive.
 
-    Stages:
+    Export mode is read from job.vm_config_json['export_mode']:
+      'live'     — crash-consistent, no downtime (default)
+      'freeze'   — filesystem freeze via guest agent during disk copy
+      'shutdown' — gracefully shut down first, export, optionally restart
+
+    Stages (shutdown mode):
+        READING_CONFIG → SHUTTING_DOWN → EXPORTING_DISKS → BUILDING_MANIFEST → PACKAGING → DONE
+
+    Stages (live/freeze mode):
         READING_CONFIG → EXPORTING_DISKS → BUILDING_MANIFEST → PACKAGING → DONE
     """
     try:
@@ -276,6 +302,13 @@ def run_export_pipeline(self, job_id):
     output_path = os.path.join(EXPORT_ROOT, f"{job_id}.px")
     remote_dir = config.proxmox_temp_dir.rstrip("/")
 
+    export_opts = job.vm_config
+    export_mode = export_opts.get("export_mode", "live")
+    restart_after = export_opts.get("restart_after", False)
+
+    fs_frozen = False
+    api = None
+
     try:
         os.makedirs(staging_dir, exist_ok=True)
         os.makedirs(EXPORT_ROOT, exist_ok=True)
@@ -286,21 +319,47 @@ def run_export_pipeline(self, job_id):
         raw_config = api.get_vm_config(node, vmid)
         vm_name = raw_config.get("name", str(vmid))
         job.vm_name = vm_name
-        job.vm_config_json = json.dumps(raw_config)
+        # Preserve export options alongside raw config
+        merged = dict(raw_config)
+        merged["_export_opts"] = export_opts
+        job.vm_config_json = json.dumps(merged)
         job.save(update_fields=["vm_name", "vm_config_json", "updated_at"])
 
-        # Warn if VM is running (export will be crash-consistent)
+        vm_running = False
         try:
             vm_status = api.get_vm_status(node, vmid)
-            if vm_status.get("status") == "running":
-                logger.warning(
-                    "ExportJob %d: VM %d is running — export will be crash-consistent",
-                    job_id, vmid,
-                )
-                job.message = "VM is running — export is crash-consistent"
-                job.save(update_fields=["message", "updated_at"])
+            vm_running = vm_status.get("status") == "running"
         except Exception:
             pass
+
+        # ── 1b. SHUTTING_DOWN (shutdown mode only) ────────────────────────────
+        if export_mode == "shutdown":
+            if vm_running:
+                job.set_stage(
+                    ExportJob.STAGE_SHUTTING_DOWN,
+                    "Sending graceful shutdown...",
+                    percent=8,
+                )
+                api.shutdown_vm(node, vmid)
+                job.set_stage(
+                    ExportJob.STAGE_SHUTTING_DOWN,
+                    "Waiting for VM to stop (up to 5 minutes)...",
+                    percent=12,
+                )
+                stopped = _wait_for_vm_stopped(api, node, vmid, timeout=300)
+                if not stopped:
+                    raise ValueError(
+                        f"VM {vmid} did not stop within 5 minutes. "
+                        "Try force-stopping the VM manually and retrying."
+                    )
+                logger.info("ExportJob %d: VM %d stopped for export", job_id, vmid)
+            else:
+                # Already stopped — skip straight through
+                job.set_stage(
+                    ExportJob.STAGE_SHUTTING_DOWN,
+                    "VM is already stopped.",
+                    percent=18,
+                )
 
         # ── 2. EXPORTING_DISKS ────────────────────────────────────────────────
         job.set_stage(ExportJob.STAGE_EXPORTING_DISKS, "Identifying disks...", percent=20)
@@ -316,6 +375,23 @@ def run_export_pipeline(self, job_id):
             "ExportJob %d: found %d exportable disk(s): %s",
             job_id, len(disks), [d["slot"] for d in disks],
         )
+
+        # Filesystem freeze (Linux + guest agent mode)
+        if export_mode == "freeze" and vm_running:
+            try:
+                api.agent_fsfreeze(node, vmid)
+                fs_frozen = True
+                logger.info("ExportJob %d: filesystem frozen on VM %d", job_id, vmid)
+                job.set_stage(
+                    ExportJob.STAGE_EXPORTING_DISKS,
+                    "Filesystems frozen — exporting disks...",
+                    percent=22,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "ExportJob %d: filesystem freeze failed (proceeding live): %s",
+                    job_id, exc,
+                )
 
         exported_disk_paths = []
         primary_failed = False
@@ -377,11 +453,28 @@ def run_export_pipeline(self, job_id):
 
         logger.info("ExportJob %d: created archive %s", job_id, output_path)
 
+        # Thaw filesystem if we froze it
+        if fs_frozen:
+            try:
+                api.agent_fsthaw(node, vmid)
+                fs_frozen = False
+                logger.info("ExportJob %d: filesystem thawed on VM %d", job_id, vmid)
+            except Exception as exc:
+                logger.warning("ExportJob %d: filesystem thaw failed: %s", job_id, exc)
+
         # Clean up staging directory
         try:
             shutil.rmtree(staging_dir)
         except Exception as exc:
             logger.warning("ExportJob %d: could not clean staging dir: %s", job_id, exc)
+
+        # Restart VM if it was shut down and restart_after is set
+        if export_mode == "shutdown" and restart_after:
+            try:
+                api.start_vm(node, vmid)
+                logger.info("ExportJob %d: restarted VM %d after export", job_id, vmid)
+            except ProxmoxAPIError as exc:
+                logger.warning("ExportJob %d: could not restart VM after export: %s", job_id, exc)
 
         # ── 5. DONE ───────────────────────────────────────────────────────────
         job.output_path = output_path
@@ -394,12 +487,31 @@ def run_export_pipeline(self, job_id):
         logger.info("ExportJob %d: pipeline complete", job_id)
 
     except SSHCommandError as exc:
+        if fs_frozen and api:
+            _try_thaw(api, node, vmid, job_id)
         _fail_export(job, f"SSH command failed: {exc}", staging_dir, output_path)
     except ProxmoxAPIError as exc:
+        if fs_frozen and api:
+            _try_thaw(api, node, vmid, job_id)
         _fail_export(job, f"Proxmox API error: {exc.message}", staging_dir, output_path)
     except Exception as exc:
+        if fs_frozen and api:
+            _try_thaw(api, node, vmid, job_id)
         _fail_export(job, str(exc), staging_dir, output_path)
         logger.error("ExportJob %d: unexpected error", job_id, exc_info=True)
+
+
+def _try_thaw(api, node, vmid, job_id):
+    """Best-effort filesystem thaw — called on error path so the guest doesn't stay frozen."""
+    try:
+        api.agent_fsthaw(node, vmid)
+        logger.info("ExportJob %d: emergency thaw succeeded for VM %d", job_id, vmid)
+    except Exception as exc:
+        logger.error(
+            "ExportJob %d: EMERGENCY THAW FAILED for VM %d: %s — "
+            "guest filesystems may still be frozen, manual intervention required",
+            job_id, vmid, exc,
+        )
 
 
 def _fail_export(job, error_message, staging_dir, output_path):

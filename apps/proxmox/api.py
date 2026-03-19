@@ -159,6 +159,14 @@ class ProxmoxAPI:
         """Create a VNC proxy ticket for a VM. Returns dict with ticket and port."""
         return self._post(f"/nodes/{node}/qemu/{vmid}/vncproxy", {"websocket": 1})
 
+    def agent_fsfreeze(self, node, vmid):
+        """Freeze all guest filesystems via QEMU guest agent."""
+        return self._post(f"/nodes/{node}/qemu/{vmid}/agent/fsfreeze-freeze")
+
+    def agent_fsthaw(self, node, vmid):
+        """Thaw all guest filesystems via QEMU guest agent."""
+        return self._post(f"/nodes/{node}/qemu/{vmid}/agent/fsfreeze-thaw")
+
     def check_vmid_available(self, node, vmid):
         """Return True if the given VMID is not currently in use on the node."""
         try:
