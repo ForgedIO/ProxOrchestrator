@@ -117,9 +117,9 @@ def _export_disk_to_staging(vmid, disk, staging_dir, remote_dir, config, job_id)
             "ExportJob %d: converted %s to %s", job_id, disk_path, remote_qcow2
         )
 
-    # SFTP the qcow2 back to the tool server
+    # SFTP the qcow2 back to the tool server (download remote→local)
     with config.get_sftp_client() as sftp:
-        sftp.put(remote_qcow2, local_dest)
+        sftp.get(remote_qcow2, local_dest)
     logger.info(
         "ExportJob %d: transferred %s to %s", job_id, remote_qcow2, local_dest
     )
@@ -300,7 +300,7 @@ def run_export_pipeline(self, job_id):
     node = job.node or config.default_node
     staging_dir = os.path.join(EXPORT_ROOT, str(job_id))
     output_path = os.path.join(EXPORT_ROOT, f"{job_id}.px")
-    remote_dir = config.proxmox_temp_dir.rstrip("/")
+    remote_dir = "/" + config.proxmox_temp_dir.strip("/")
 
     export_opts = job.vm_config
     export_mode = export_opts.get("export_mode", "live")
@@ -557,7 +557,7 @@ def run_px_import_pipeline(self, job_id):
     node = job.node or config.default_node
     extract_dir = job.extract_dir
     assigned_vmid = None
-    remote_dir = config.proxmox_temp_dir.rstrip("/")
+    remote_dir = "/" + config.proxmox_temp_dir.strip("/")
 
     # Disk list from manifest
     manifest_disks = manifest.get("disks", [])

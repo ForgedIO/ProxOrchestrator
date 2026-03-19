@@ -116,6 +116,41 @@ class ProxmoxSFTP:
                 # Directory already exists — ignore
                 pass
 
+    def get(self, remote_path, local_path, progress_callback=None):
+        """Download a file from the remote host in chunks.
+
+        Args:
+            remote_path: path to the file on the remote host
+            local_path: destination path on the local filesystem
+            progress_callback: optional callable(bytes_transferred, total_bytes)
+        """
+        if self._sftp is None:
+            raise paramiko.SSHException("SFTP client is not connected. Call connect() first.")
+
+        remote_stat = self._sftp.stat(remote_path)
+        total_bytes = remote_stat.st_size
+        bytes_transferred = 0
+
+        logger.info(
+            "SFTP get %s -> %s (%d bytes)", remote_path, local_path, total_bytes
+        )
+
+        with self._sftp.open(remote_path, "rb") as remote_file:
+            with open(local_path, "wb") as local_file:
+                while True:
+                    chunk = remote_file.read(CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    local_file.write(chunk)
+                    bytes_transferred += len(chunk)
+                    if progress_callback is not None:
+                        try:
+                            progress_callback(bytes_transferred, total_bytes)
+                        except Exception:
+                            pass
+
+        logger.info("SFTP get complete: %s -> %s", remote_path, local_path)
+
     def remove(self, remote_path):
         """Delete a remote file, ignoring errors if not found."""
         if self._sftp is None:
