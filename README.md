@@ -32,12 +32,24 @@ ProxMigrate is designed to run on a dedicated Linux server that connects to Prox
 | Family | Tested distros |
 |---|---|
 | **Debian / Ubuntu** | Ubuntu 22.04 LTS, Ubuntu 24.04 LTS, Debian 11, Debian 12 |
-| **RHEL / CentOS / Rocky** | CentOS Stream 9, Rocky Linux 8/9, AlmaLinux 8/9, RHEL 8/9, Fedora 38+ |
+| **RHEL / CentOS Stream / Rocky** | CentOS Stream 9 (EOL ~May 2027), CentOS Stream 10 (EOL ~2030), Rocky Linux 8/9, AlmaLinux 8/9, RHEL 8/9 |
 | **SUSE / openSUSE** | openSUSE Leap 15, openSUSE Tumbleweed |
 
-The installer auto-detects `apt`, `dnf`, `yum`, or `zypper` and installs the correct packages for your distribution. Ubuntu 22.04/24.04 and Rocky Linux 9 are the most tested and recommended.
+The installer auto-detects `apt`, `dnf`, `yum`, or `zypper` and installs the correct packages for your distribution. Ubuntu 22.04/24.04 and CentOS Stream 10 are the most tested and recommended for production use.
 
 **SELinux note (RHEL/CentOS/Rocky):** The installer automatically detects SELinux and applies the required policy — `httpd_can_network_connect`, port labelling for the HTTPS port, and `restorecon` on the app directory. No manual SELinux configuration is needed.
+
+#### A note on CentOS
+
+> **"Isn't CentOS discontinued?"** — No, but the *old* CentOS Linux is. Here is what changed:
+>
+> **CentOS Linux** (the classic version) was a free, binary-compatible downstream clone of RHEL. Red Hat ended it early — CentOS Linux 8 reached end of life on **December 31, 2021**, several years ahead of schedule.
+>
+> **CentOS Stream** is a completely different product and is not discontinued. It is the official upstream development branch for the next RHEL minor release — meaning updates land in CentOS Stream first, then flow into RHEL. It is actively maintained by Red Hat and the CentOS Project and is a supported, production-grade platform:
+> - CentOS Stream 9 — supported until approximately May 2027
+> - CentOS Stream 10 — supported until approximately 2030, tied to the RHEL 10 Full Support lifecycle
+>
+> [Backup Assure](https://backupassure.io) runs its own infrastructure on CentOS Stream specifically for the SELinux security model it provides. If someone tells you "CentOS is dead" they are thinking of the old CentOS Linux, not CentOS Stream.
 
 ### Why root/sudo is required
 
