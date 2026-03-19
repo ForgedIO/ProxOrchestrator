@@ -1,6 +1,6 @@
 # ProxMigrate
 
-**Version 1.1.2** — Build `2026-03-19.1`
+**Version 1.1.3** — Build `2026-03-19.2`
 
 > **To update an existing install:** `git pull origin main && sudo ./update.sh`
 
@@ -288,6 +288,13 @@ This removes all services, files, and the `proxmigrate` system user. The databas
 
 ## Changelog
 
+### v1.1.3 — 2026-03-19.2
+- **Email Settings** — SMTP and Microsoft Graph API (client credentials / Mail.Send) for outgoing email
+- Encrypted storage of SMTP password and Graph client secret
+- Live test send from the settings page for both backends
+- Full Azure App Registration setup guide built into the UI
+- "Enable email delivery" checkbox on Save — one action saves and activates
+
 ### v1.1.2 — 2026-03-19.1
 - **VM Export** — export any VM as a portable `.px` package (compressed qcow2 + JSON manifest)
 - **Smart export modes** — live, filesystem freeze (QEMU guest agent), or graceful shutdown; Windows VMs default to shutdown for NTFS/registry consistency
@@ -318,9 +325,9 @@ This removes all services, files, and the `proxmigrate` system user. The databas
 - [x] Authentication — local accounts, LDAP, Microsoft Entra ID (Azure AD) with group-based access control
 - [x] TLS certificate management — CSR workflow, upload, self-signed, port configuration
 - [x] VirtIO Windows driver ISO browser — automatically attach drivers to Windows VMs
-- [ ] SMTP configuration — outbound email for password reset and notifications
-- [ ] Forgotten password / self-service password reset
-- [ ] MFA — TOTP (authenticator app) for local and LDAP accounts
+- [x] Email delivery — SMTP and Microsoft Graph API, with live test send and encrypted credential storage
+- [ ] Password recovery — self-service password reset for local accounts via email
+- [ ] MFA — TOTP (authenticator app) for local and LDAP accounts, including TOTP recovery codes
 
 ### Phase 2 — VM Export & Portable Packages
 Export a complete VM (configuration + all disks) as a `.px` package — a tar.gz archive with a JSON manifest — that can be imported on any ProxMigrate server to recreate the VM identically.
