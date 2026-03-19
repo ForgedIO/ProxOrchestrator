@@ -437,11 +437,38 @@ EOF
 chmod 440 "${SUDOERS_FILE}"
 echo "    Sudoers rule written: ${SUDOERS_FILE}"
 
-# Note for RHEL-based installs: SELinux may block nginx from proxying to gunicorn
-if [[ "${PKG_MANAGER}" =~ ^(dnf|yum)$ ]]; then
-    echo "    NOTE: If nginx fails to start on SELinux-enforcing systems, run:"
-    echo "    setsebool -P httpd_can_network_connect 1"
-    echo "    semanage port -a -t http_port_t -p tcp ${PORT} (if port is non-standard)"
+# SELinux configuration for RHEL/CentOS/Rocky-based installs
+if [[ "${PKG_MANAGER}" =~ ^(dnf|yum)$ ]] && command -v getenforce &>/dev/null; then
+    SELINUX_STATUS="$(getenforce 2>/dev/null || echo Disabled)"
+    echo "==> SELinux status: ${SELINUX_STATUS}"
+
+    if [[ "${SELINUX_STATUS}" == "Enforcing" || "${SELINUX_STATUS}" == "Permissive" ]]; then
+        echo "    Applying SELinux policy for ProxMigrate..."
+
+        # Allow nginx (httpd_t) to proxy to the gunicorn Unix socket
+        setsebool -P httpd_can_network_connect 1
+        echo "    Set httpd_can_network_connect = on"
+
+        # Allow nginx to listen on the configured port if non-standard
+        # (SELinux only knows about ports 80/443/8080 by default)
+        if command -v semanage &>/dev/null; then
+            if ! semanage port -l | grep -qw "${PORT}"; then
+                semanage port -a -t http_port_t -p tcp "${PORT}"
+                echo "    Registered port ${PORT} as http_port_t"
+            else
+                echo "    Port ${PORT} already known to SELinux"
+            fi
+        else
+            echo "    WARNING: semanage not found — install policycoreutils-python-utils"
+            echo "    Then run: semanage port -a -t http_port_t -p tcp ${PORT}"
+        fi
+
+        # Fix file contexts under /opt/proxmigrate
+        if command -v restorecon &>/dev/null; then
+            restorecon -R "${APP_HOME}"
+            echo "    Restored SELinux file contexts on ${APP_HOME}"
+        fi
+    fi
 fi
 
 # ---------------------------------------------------------------------------

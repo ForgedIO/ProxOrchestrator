@@ -37,6 +37,8 @@ ProxMigrate is designed to run on a dedicated Linux server that connects to Prox
 
 The installer auto-detects `apt`, `dnf`, `yum`, or `zypper` and installs the correct packages for your distribution. Ubuntu 22.04/24.04 and Rocky Linux 9 are the most tested and recommended.
 
+**SELinux note (RHEL/CentOS/Rocky):** The installer automatically detects SELinux and applies the required policy — `httpd_can_network_connect`, port labelling for the HTTPS port, and `restorecon` on the app directory. No manual SELinux configuration is needed.
+
 ### Why root/sudo is required
 
 The installer performs operations that require root privileges:
