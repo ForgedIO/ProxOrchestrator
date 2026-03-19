@@ -118,22 +118,23 @@ def _export_disk_to_staging(vmid, disk, staging_dir, remote_dir, config, job_id)
             "ExportJob %d: converted %s to %s", job_id, disk_path, remote_qcow2
         )
 
-    # SFTP the qcow2 back to the tool server (download remote→local)
-    with config.get_sftp_client() as sftp:
-        sftp.get(remote_qcow2, local_dest)
-    logger.info(
-        "ExportJob %d: transferred %s to %s", job_id, remote_qcow2, local_dest
-    )
-
-    # Clean up the remote temp file
+    # SFTP the qcow2 back to the tool server (download remote→local).
+    # Always clean up the remote temp file afterwards, even on failure.
     try:
-        with config.get_ssh_client() as ssh:
-            ssh.run(["rm", "-f", remote_qcow2])
-    except Exception as exc:
-        logger.warning(
-            "ExportJob %d: could not remove remote temp file %s: %s",
-            job_id, remote_qcow2, exc,
+        with config.get_sftp_client() as sftp:
+            sftp.get(remote_qcow2, local_dest)
+        logger.info(
+            "ExportJob %d: transferred %s to %s", job_id, remote_qcow2, local_dest
         )
+    finally:
+        try:
+            with config.get_ssh_client() as ssh:
+                ssh.run(["rm", "-f", remote_qcow2])
+        except Exception as exc:
+            logger.warning(
+                "ExportJob %d: could not remove remote temp file %s: %s",
+                job_id, remote_qcow2, exc,
+            )
 
     return local_dest
 
