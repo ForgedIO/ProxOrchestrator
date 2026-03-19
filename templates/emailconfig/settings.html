@@ -3,22 +3,7 @@
 {% block page_title %}Email Settings{% endblock %}
 {% block help_slug %}email-settings{% endblock %}
 
-{% block page_actions %}
-  <form method="post" action="{% url 'email_settings_toggle' %}" style="display:inline;">
-    {% csrf_token %}
-    {% if config and config.is_enabled %}
-      <button type="submit" class="button is-warning is-small">
-        <span class="icon is-small"><i class="fas fa-toggle-on"></i></span>
-        <span>Disable Email</span>
-      </button>
-    {% else %}
-      <button type="submit" class="button is-success is-small">
-        <span class="icon is-small"><i class="fas fa-toggle-off"></i></span>
-        <span>Enable Email</span>
-      </button>
-    {% endif %}
-  </form>
-{% endblock %}
+{% block page_actions %}{% endblock %}
 
 {% block content %}
 <div class="columns">
@@ -234,11 +219,16 @@
               </div>
             </div>
 
-            <div class="field" style="margin-top:0.5rem;">
+            <div class="field" style="margin-top:0.5rem;display:flex;align-items:center;gap:1.5rem;">
               <button type="submit" class="button is-primary">
                 <span class="icon"><i class="fas fa-save"></i></span>
-                <span>Save SMTP Settings</span>
+                <span>Save Settings</span>
               </button>
+              <label class="checkbox" style="font-size:0.9rem;">
+                <input type="checkbox" name="is_enabled"
+                       {% if config and config.is_enabled and config.backend_type == 'smtp' %}checked{% endif %}>
+                Enable email delivery
+              </label>
             </div>
           </form>
         </div>
@@ -440,11 +430,16 @@ New-ApplicationAccessPolicy `
               </div>
             </div>
 
-            <div class="field" style="margin-top:0.5rem;">
+            <div class="field" style="margin-top:0.5rem;display:flex;align-items:center;gap:1.5rem;">
               <button type="submit" class="button is-primary">
                 <span class="icon"><i class="fas fa-save"></i></span>
-                <span>Save Graph API Settings</span>
+                <span>Save Settings</span>
               </button>
+              <label class="checkbox" style="font-size:0.9rem;">
+                <input type="checkbox" name="is_enabled"
+                       {% if config and config.is_enabled and config.backend_type == 'graph' %}checked{% endif %}>
+                Enable email delivery
+              </label>
             </div>
           </form>
 

@@ -3,6 +3,7 @@ import smtplib
 import socket
 
 import requests
+from django.apps import apps
 from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import redirect
@@ -10,7 +11,6 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from apps.emailconfig.apps import EmailConfigApp
 from apps.emailconfig.models import EmailConfig
 
 logger = logging.getLogger(__name__)
@@ -31,8 +31,8 @@ def _staff_required(view_func):
 
 
 def _reload_email_config():
-    """Re-apply email settings from DB after a save."""
-    EmailConfigApp("apps.emailconfig", None)._load_email_config()
+    """Re-apply email settings from DB into the running Django process."""
+    apps.get_app_config("emailconfig")._load_email_config()
 
 
 @_staff_required
@@ -52,6 +52,8 @@ def email_settings_save(request, backend_type):
     config, _ = EmailConfig.objects.get_or_create(pk=1)
     config.from_email = request.POST.get("from_email", "").strip()
 
+    config.is_enabled = "is_enabled" in request.POST
+
     if backend_type == "smtp":
         config.backend_type = EmailConfig.BACKEND_SMTP
         config.smtp_host = request.POST.get("smtp_host", "").strip()
@@ -67,9 +69,9 @@ def email_settings_save(request, backend_type):
         config.smtp_use_ssl = "smtp_use_ssl" in request.POST
         config.save()
         _reload_email_config()
-        logger.info("SMTP email config saved by %s", request.user)
+        logger.info("SMTP email config saved by %s (enabled=%s)", request.user, config.is_enabled)
         messages.success(request, "SMTP settings saved.")
-        return redirect(reverse("email_settings") + "?tab=smtp")
+        return redirect("email_settings")
 
     elif backend_type == "graph":
         config.backend_type = EmailConfig.BACKEND_GRAPH
@@ -80,24 +82,12 @@ def email_settings_save(request, backend_type):
             config.graph_client_secret = new_secret
         config.save()
         _reload_email_config()
-        logger.info("Graph API email config saved by %s", request.user)
+        logger.info("Graph API email config saved by %s (enabled=%s)", request.user, config.is_enabled)
         messages.success(request, "Microsoft Graph API settings saved.")
-        return redirect(reverse("email_settings") + "?tab=graph")
+        return redirect("email_settings")
 
     messages.error(request, f"Unknown backend type: {backend_type}")
     return redirect("email_settings")
-
-
-@_staff_required
-@require_POST
-def email_settings_toggle(request):
-    config, _ = EmailConfig.objects.get_or_create(pk=1)
-    config.is_enabled = not config.is_enabled
-    config.save()
-    _reload_email_config()
-    state = "enabled" if config.is_enabled else "disabled"
-    logger.info("Email delivery %s by %s", state, request.user)
-    return HttpResponse("", headers={"HX-Refresh": "true"})
 
 
 @_staff_required
