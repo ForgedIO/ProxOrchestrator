@@ -10,7 +10,8 @@ def apply_cloud_init(vmid, vm_config, config, ssh):
     """Apply Proxmox native cloud-init settings to a VM.
 
     Must be called while an SSH session is already open and passed in as `ssh`.
-    The cloud-init drive is attached on ide0.  Basic fields (user, password,
+    The cloud-init drive is attached on ide0 (ide2/ide3 are reserved for ISO
+    and VirtIO CD-ROMs).  Basic fields (user, password,
     SSH keys, IP, DNS) are set via qm set, and a custom user-data YAML is
     uploaded via SFTP to the snippets directory if provided.
     """
@@ -27,11 +28,11 @@ def apply_cloud_init(vmid, vm_config, config, ssh):
 
     logger.info("Applying cloud-init config to VM %s on storage %s", vmid, ci_storage)
 
-    # Attach the cloud-init drive as sata0 (not ide0).
-    # On kernel 6.12+ (Rocky Linux 10) the QEMU PIIX3 IDE CDROM emulation does
-    # not surface the device — ATAPI IDENTIFY returns all zeros and no /dev/sr0
-    # is created. The ahci/SATA driver handles it correctly on all guest kernels.
-    ssh.run_checked(["qm", "set", str(vmid), "--sata0", f"{ci_storage}:cloudinit"])
+    # Attach the cloud-init drive on ide0.
+    # ide2 is reserved for the install ISO CD-ROM and ide3 for the VirtIO
+    # driver disc, so ide0 is always free. IDE gives the broadest guest OS
+    # support for cloud-init drives across Linux, Windows, and BSD guests.
+    ssh.run_checked(["qm", "set", str(vmid), "--ide0", f"{ci_storage}:cloudinit"])
 
     # Build up the qm set call for basic CI fields
     ci_args = ["qm", "set", str(vmid)]
