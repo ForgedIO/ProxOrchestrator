@@ -10,6 +10,15 @@
   </a>
 {% endblock %}
 
+{% block extra_styles %}
+<style>
+@keyframes hg-breathe {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="columns">
   <div class="column is-8 is-offset-2">
@@ -28,7 +37,7 @@
             </div>
           {% else %}
             <div style="width:52px;height:52px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <i class="fas fa-hourglass-half fa-pulse" style="font-size:1.5rem;color:#3273dc;"></i>
+              <i class="fas fa-hourglass-half" style="font-size:1.5rem;color:#3273dc;animation:hg-breathe 2s ease-in-out infinite;"></i>
             </div>
           {% endif %}
 
