@@ -19,6 +19,7 @@ urlpatterns = [
     path("exporter/", include("apps.exporter.urls")),
     path("settings/proxmox/", proxmox_settings, name="proxmox_settings"),
     path("settings/auth/", include("apps.authconfig.urls")),
+    path("settings/email/", include("apps.emailconfig.urls")),
     path("settings/certificates/", include("apps.certificates.urls")),
     path("accounts/", include("allauth.urls")),
     # User management actions (HTMX targets)

@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "apps.vmmanager",
     "apps.exporter",
     "apps.authconfig",
+    "apps.emailconfig",
     "apps.certificates",
     "apps.vmcreator",
 ]
@@ -250,3 +251,11 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # ---------------------------------------------------------------------------
 
 WEB_PORT = int(os.environ.get("WEB_PORT", "8443"))
+
+# ---------------------------------------------------------------------------
+# Email
+# Defaults — overridden at startup by apps.emailconfig.apps.EmailConfigApp
+# ---------------------------------------------------------------------------
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "noreply@proxmigrate.local"

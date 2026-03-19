@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+{% block title %}Email Settings — ProxMigrate{% endblock %}
+{% block page_title %}Email Settings{% endblock %}
+{% block help_slug %}email-settings{% endblock %}
+
+{% block page_actions %}
+  <form method="post" action="{% url 'email_settings_toggle' %}" style="display:inline;">
+    {% csrf_token %}
+    {% if config and config.is_enabled %}
+      <button type="submit" class="button is-warning is-small">
+        <span class="icon is-small"><i class="fas fa-toggle-on"></i></span>
+        <span>Disable Email</span>
+      </button>
+    {% else %}
+      <button type="submit" class="button is-success is-small">
+        <span class="icon is-small"><i class="fas fa-toggle-off"></i></span>
+        <span>Enable Email</span>
+      </button>
+    {% endif %}
+  </form>
+{% endblock %}
+
+{% block content %}
+<div class="columns">
+  <div class="column is-10 is-offset-1">
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="notification is-{{ message.tags }} is-light" style="margin-bottom:1rem;">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    {# ── Status banner ── #}
+    {% if config and config.is_enabled %}
+      <div class="notification is-success is-light" style="margin-bottom:1.5rem;padding:0.75rem 1rem;">
+        <i class="fas fa-check-circle" style="margin-right:0.4rem;"></i>
+        Email delivery is <strong>enabled</strong> using
+        {% if config.backend_type == 'smtp' %}<strong>SMTP</strong> ({{ config.smtp_host }}){% else %}<strong>Microsoft Graph API</strong>{% endif %}.
+        Outgoing mail will be sent from <strong>{{ config.from_email }}</strong>.
+      </div>
+    {% else %}
+      <div class="notification is-warning is-light" style="margin-bottom:1.5rem;padding:0.75rem 1rem;">
+        <i class="fas fa-exclamation-triangle" style="margin-right:0.4rem;"></i>
+        Email delivery is <strong>disabled</strong>. Password reset and alert emails will not be sent until email is configured and enabled.
+      </div>
+    {% endif %}
+
+    {# ── Tabs ── #}
+    <div class="tabs" style="margin-bottom:0;">
+      <ul>
+        <li id="tab-smtp" class="{% if active_tab == 'smtp' %}is-active{% endif %}">
+          <a onclick="switchTab('smtp')">
+            <span class="icon is-small"><i class="fas fa-envelope"></i></span>
+            <span>SMTP</span>
+          </a>
+        </li>
+        <li id="tab-graph" class="{% if active_tab == 'graph' %}is-active{% endif %}">
+          <a onclick="switchTab('graph')">
+            <span class="icon is-small"><i class="fab fa-microsoft"></i></span>
+            <span>Microsoft Graph API</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    {# ══════════════════════════════════════════════════════════════════════ #}
+    {# SMTP Tab                                                               #}
+    {# ══════════════════════════════════════════════════════════════════════ #}
+    <div id="pane-smtp" class="tab-pane {% if active_tab != 'smtp' %}is-hidden{% endif %}">
+      <div class="proxmigrate-card">
+        <div class="card-header">
+          <i class="fas fa-envelope" style="color:#3273dc;margin-right:0.5rem;"></i>
+          SMTP Configuration
+        </div>
+        <div class="card-body" style="padding:1.5rem;">
+
+          <form method="post" action="{% url 'email_settings_save' 'smtp' %}" id="smtp-form">
+            {% csrf_token %}
+
+            <div class="columns">
+              <div class="column is-6">
+                <div class="field">
+                  <label class="label">From Address</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="email" name="from_email"
+                           value="{{ config.from_email|default:'' }}"
+                           placeholder="proxmigrate@example.com">
+                    <span class="icon is-left"><i class="fas fa-at"></i></span>
+                  </div>
+                  <p class="field-hint">Sender address shown on all outgoing emails.</p>
+                </div>
+              </div>
+            </div>
+
+            <hr style="margin:1rem 0;">
+
+            <div class="columns">
+              <div class="column is-6">
+                <div class="field">
+                  <label class="label">SMTP Host</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="text" name="smtp_host"
+                           value="{{ config.smtp_host|default:'' }}"
+                           placeholder="smtp.office365.com">
+                    <span class="icon is-left"><i class="fas fa-server"></i></span>
+                  </div>
+                </div>
+              </div>
+              <div class="column is-3">
+                <div class="field">
+                  <label class="label">Port</label>
+                  <div class="control">
+                    <input class="input" type="number" name="smtp_port"
+                           value="{{ config.smtp_port|default:'587' }}"
+                           min="1" max="65535">
+                  </div>
+                  <p class="field-hint">587 (STARTTLS) · 465 (SSL) · 25 (plain)</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="columns">
+              <div class="column is-6">
+                <div class="field">
+                  <label class="label">Username</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="text" name="smtp_username"
+                           value="{{ config.smtp_username|default:'' }}"
+                           placeholder="user@example.com">
+                    <span class="icon is-left"><i class="fas fa-user"></i></span>
+                  </div>
+                </div>
+              </div>
+              <div class="column is-6">
+                <div class="field">
+                  <label class="label">Password</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="password" name="smtp_password"
+                           placeholder="{% if config and config.smtp_password_set %}(saved — leave blank to keep){% else %}Enter password{% endif %}">
+                    <span class="icon is-left"><i class="fas fa-lock"></i></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="columns">
+              <div class="column">
+                <div class="field">
+                  <label class="checkbox">
+                    <input type="checkbox" name="smtp_use_tls"
+                           {% if not config or config.smtp_use_tls %}checked{% endif %}>
+                    Use STARTTLS (recommended for port 587)
+                  </label>
+                </div>
+                <div class="field">
+                  <label class="checkbox">
+                    <input type="checkbox" name="smtp_use_ssl"
+                           {% if config and config.smtp_use_ssl %}checked{% endif %}>
+                    Use SSL/TLS (for port 465)
+                  </label>
+                  <p class="field-hint">Do not enable both STARTTLS and SSL at the same time.</p>
+                </div>
+              </div>
+            </div>
+
+            <hr style="margin:1rem 0;">
+
+            <div class="columns" style="align-items:flex-end;">
+              <div class="column is-4">
+                <div class="field">
+                  <label class="label">Send Test Email To</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="email" name="test_to"
+                           placeholder="you@example.com">
+                    <span class="icon is-left"><i class="fas fa-paper-plane"></i></span>
+                  </div>
+                </div>
+              </div>
+              <div class="column is-narrow" style="padding-bottom:0.75rem;">
+                <button type="button" class="button is-info is-light"
+                        hx-post="{% url 'email_settings_test' 'smtp' %}"
+                        hx-include="#smtp-form"
+                        hx-target="#smtp-test-result"
+                        hx-swap="innerHTML">
+                  <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                  <span>Send Test</span>
+                </button>
+              </div>
+              <div class="column" style="padding-bottom:0.75rem;">
+                <div id="smtp-test-result"></div>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:0.5rem;">
+              <button type="submit" class="button is-primary">
+                <span class="icon"><i class="fas fa-save"></i></span>
+                <span>Save SMTP Settings</span>
+              </button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+    </div>
+
+    {# ══════════════════════════════════════════════════════════════════════ #}
+    {# Microsoft Graph API Tab                                                #}
+    {# ══════════════════════════════════════════════════════════════════════ #}
+    <div id="pane-graph" class="tab-pane {% if active_tab != 'graph' %}is-hidden{% endif %}">
+      <div class="proxmigrate-card">
+        <div class="card-header">
+          <i class="fab fa-microsoft" style="color:#0078d4;margin-right:0.5rem;"></i>
+          Microsoft Graph API
+        </div>
+        <div class="card-body" style="padding:1.5rem;">
+
+          {# ── Azure App Registration Guide (collapsible) ── #}
+          <div class="form-section" style="margin-bottom:1.5rem;">
+            <div class="form-section-header" onclick="toggleSection(this)">
+              <div style="display:flex;align-items:center;gap:0.5rem;">
+                <i class="fas fa-book" style="color:#0369a1;"></i>
+                Azure App Registration Guide — Mail.Send via Client Credentials
+              </div>
+              <i class="fas fa-chevron-down section-toggle-icon" style="color:#b5b5b5;font-size:0.8rem;"></i>
+            </div>
+            <div class="form-section-body">
+              <ol class="step-guide">
+
+                <li>
+                  <div class="step-guide-num">1</div>
+                  <div class="step-guide-text">
+                    Go to <strong>portal.azure.com</strong> &rarr; <strong>Microsoft Entra ID</strong> &rarr; <strong>App registrations</strong> &rarr; <strong>New registration</strong>.
+                    Name it something descriptive like <code>ProxMigrate Mail</code>.
+                    Supported account types: <strong>Accounts in this organizational directory only</strong>.
+                    No redirect URI is needed for this app — it uses application permissions, not user sign-in.
+                  </div>
+                </li>
+
+                <li>
+                  <div class="step-guide-num">2</div>
+                  <div class="step-guide-text">
+                    After creation, copy the <strong>Application (client) ID</strong> and <strong>Directory (tenant) ID</strong> from the Overview page — you will need both below.
+                  </div>
+                </li>
+
+                <li>
+                  <div class="step-guide-num">3</div>
+                  <div class="step-guide-text">
+                    Go to <strong>API permissions</strong> &rarr; <strong>Add a permission</strong> &rarr; <strong>Microsoft Graph</strong> &rarr; <strong>Application permissions</strong> (not Delegated — this is server-to-server) and add the following:
+                    <table style="margin-top:0.6rem;font-size:0.8rem;border-collapse:collapse;width:100%;">
+                      <thead>
+                        <tr style="background:#f0f4f8;">
+                          <th style="padding:0.35rem 0.6rem;text-align:left;border:1px solid #dde3ea;">Permission</th>
+                          <th style="padding:0.35rem 0.6rem;text-align:left;border:1px solid #dde3ea;">Type</th>
+                          <th style="padding:0.35rem 0.6rem;text-align:left;border:1px solid #dde3ea;">Admin consent</th>
+                          <th style="padding:0.35rem 0.6rem;text-align:left;border:1px solid #dde3ea;">Purpose</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style="padding:0.35rem 0.6rem;border:1px solid #dde3ea;font-family:monospace;">Mail.Send</td>
+                          <td style="padding:0.35rem 0.6rem;border:1px solid #dde3ea;">Application</td>
+                          <td style="padding:0.35rem 0.6rem;border:1px solid #dde3ea;"><span class="tag is-warning is-light" style="font-size:0.72rem;">Required</span></td>
+                          <td style="padding:0.35rem 0.6rem;border:1px solid #dde3ea;">Allows ProxMigrate to send email as the configured From mailbox</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p style="margin-top:0.5rem;color:#6b7280;">
+                      After adding <code>Mail.Send</code>, click <strong>Grant admin consent for &lt;your tenant&gt;</strong>.
+                      The status column must show a green <strong>Granted</strong> tick — the permission will not work otherwise.
+                    </p>
+                  </div>
+                </li>
+
+                <li>
+                  <div class="step-guide-num">4</div>
+                  <div class="step-guide-text">
+                    <strong>Restrict the permission to a specific mailbox (recommended).</strong>
+                    By default, <code>Mail.Send</code> as an Application permission allows the app to send as <em>any</em> mailbox in your tenant.
+                    To restrict it to a single mailbox, create an <strong>Application Access Policy</strong> in Exchange Online PowerShell:
+                    <pre style="margin-top:0.5rem;background:#f0f4ff;border:1px solid #c8d8ff;border-radius:6px;padding:0.6rem 0.8rem;font-size:0.78rem;overflow-x:auto;"><code># Run in Exchange Online PowerShell
+New-ApplicationAccessPolicy `
+  -AppId "&lt;your-client-id&gt;" `
+  -PolicyScopeGroupId "&lt;mailbox@yourcompany.com&gt;" `
+  -AccessRight RestrictAccess `
+  -Description "Restrict ProxMigrate to send from one mailbox"</code></pre>
+                    <p style="margin-top:0.4rem;color:#6b7280;">This is optional but strongly recommended for production. A shared mailbox (e.g. <code>alerts@yourcompany.com</code>) works well as the From address.</p>
+                  </div>
+                </li>
+
+                <li>
+                  <div class="step-guide-num">5</div>
+                  <div class="step-guide-text">
+                    Go to <strong>Certificates &amp; secrets</strong> &rarr; <strong>Client secrets</strong> &rarr; <strong>New client secret</strong>.
+                    Set an expiry, then copy the secret <strong>Value</strong> immediately — Azure only shows it once.
+                    Paste it into the <strong>Client Secret</strong> field below.
+                  </div>
+                </li>
+
+                <li>
+                  <div class="step-guide-num">6</div>
+                  <div class="step-guide-text">
+                    Fill in the three fields below (<strong>Tenant ID</strong>, <strong>Client ID</strong>, <strong>Client Secret</strong>), set the <strong>From Address</strong> to the mailbox you want to send from, save, and use <strong>Send Test</strong> to verify everything works end-to-end.
+                  </div>
+                </li>
+
+              </ol>
+            </div>
+          </div>
+
+          {# ── Graph API form ── #}
+          <form method="post" action="{% url 'email_settings_save' 'graph' %}" id="graph-form">
+            {% csrf_token %}
+
+            <div class="columns">
+              <div class="column is-6">
+                <div class="field">
+                  <label class="label">From Address</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="email" name="from_email"
+                           value="{{ config.from_email|default:'' }}"
+                           placeholder="alerts@yourcompany.com">
+                    <span class="icon is-left"><i class="fas fa-at"></i></span>
+                  </div>
+                  <p class="field-hint">Must be a mailbox in your tenant. A dedicated shared mailbox is recommended.</p>
+                </div>
+              </div>
+            </div>
+
+            <hr style="margin:1rem 0;">
+
+            <div class="columns">
+              <div class="column is-6">
+                <div class="field">
+                  <label class="label">Directory (Tenant) ID</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="text" name="graph_tenant_id"
+                           value="{{ config.graph_tenant_id|default:'' }}"
+                           placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                    <span class="icon is-left"><i class="fas fa-building"></i></span>
+                  </div>
+                  <p class="field-hint">Azure Portal &rarr; Microsoft Entra ID &rarr; Overview &rarr; Tenant ID.</p>
+                </div>
+              </div>
+              <div class="column is-6">
+                <div class="field">
+                  <label class="label">Application (Client) ID</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="text" name="graph_client_id"
+                           value="{{ config.graph_client_id|default:'' }}"
+                           placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                    <span class="icon is-left"><i class="fas fa-fingerprint"></i></span>
+                  </div>
+                  <p class="field-hint">App Registration &rarr; Overview &rarr; Application (client) ID.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="columns">
+              <div class="column is-6">
+                <div class="field">
+                  <label class="label">Client Secret Value</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="password" name="graph_client_secret"
+                           placeholder="{% if config and config.graph_client_secret_set %}(saved — leave blank to keep){% else %}Paste client secret value here{% endif %}">
+                    <span class="icon is-left"><i class="fas fa-key"></i></span>
+                  </div>
+                  <p class="field-hint">The secret <strong>Value</strong> (not the secret ID). Azure shows it only once at creation time.</p>
+                </div>
+              </div>
+            </div>
+
+            <hr style="margin:1rem 0;">
+
+            <div class="columns" style="align-items:flex-end;">
+              <div class="column is-4">
+                <div class="field">
+                  <label class="label">Send Test Email To</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="email" name="test_to"
+                           placeholder="you@example.com">
+                    <span class="icon is-left"><i class="fas fa-paper-plane"></i></span>
+                  </div>
+                </div>
+              </div>
+              <div class="column is-narrow" style="padding-bottom:0.75rem;">
+                <button type="button" class="button is-info is-light"
+                        hx-post="{% url 'email_settings_test' 'graph' %}"
+                        hx-include="#graph-form"
+                        hx-target="#graph-test-result"
+                        hx-swap="innerHTML">
+                  <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                  <span>Send Test</span>
+                </button>
+              </div>
+              <div class="column" style="padding-bottom:0.75rem;">
+                <div id="graph-test-result"></div>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:0.5rem;">
+              <button type="submit" class="button is-primary">
+                <span class="icon"><i class="fas fa-save"></i></span>
+                <span>Save Graph API Settings</span>
+              </button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('is-hidden'));
+  document.querySelectorAll('.tabs li').forEach(t => t.classList.remove('is-active'));
+  document.getElementById('pane-' + tab).classList.remove('is-hidden');
+  document.getElementById('tab-' + tab).classList.add('is-active');
+}
+
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const icon = header.querySelector('.section-toggle-icon');
+  const isOpen = body.classList.contains('is-open');
+  body.classList.toggle('is-open', !isOpen);
+  icon.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+</script>
+{% endblock %}

@@ -46,6 +46,9 @@
       <a href="{% url 'auth_settings' %}" class="{% if 'auth' in request.resolver_match.url_name %}is-active{% endif %}">
         <i class="fas fa-shield-alt"></i> Authentication
       </a>
+      <a href="{% url 'email_settings' %}" class="{% if 'email' in request.resolver_match.url_name %}is-active{% endif %}">
+        <i class="fas fa-envelope"></i> Email
+      </a>
       <a href="{% url 'cert_settings' %}" class="{% if 'cert' in request.resolver_match.url_name %}is-active{% endif %}">
         <i class="fas fa-certificate"></i> Certificates
       </a>
