@@ -161,6 +161,8 @@
                     <span class="status-badge vm-status-running">Done</span>
                   {% elif job.stage == 'FAILED' %}
                     <span class="status-badge vm-status-stopped">Failed</span>
+                  {% elif job.stage == 'CANCELLED' %}
+                    <span class="status-badge" style="background:#f5f5f5;color:#7a7a7a;">Cancelled</span>
                   {% elif job.stage == 'QUEUED' %}
                     <span class="status-badge vm-status-unknown">Queued</span>
                   {% else %}
@@ -206,24 +208,8 @@
                       </form>
                     {% endif %}
 
-                  {% elif job.stage == 'QUEUED' %}
-                    {# Resume: re-queue the pipeline #}
-                    {% if job.job_type == 'import' %}
-                      <form method="post" action="{% url 'importer_resume_job' job.id %}" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="button is-small is-info is-light" title="Resume job">
-                          <i class="fas fa-play"></i>
-                        </button>
-                      </form>
-                    {% else %}
-                      <form method="post" action="{% url 'vmcreator_resume_job' job.id %}" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="button is-small is-info is-light" title="Resume job">
-                          <i class="fas fa-play"></i>
-                        </button>
-                      </form>
-                    {% endif %}
-                    {# Delete #}
+                  {% elif job.stage == 'CANCELLED' %}
+                    {# Delete cancelled jobs #}
                     {% if job.job_type == 'import' %}
                       <form method="post" action="{% url 'importer_delete_job' job.id %}" style="display:inline;" onsubmit="return confirm('Delete this job? This cannot be undone.')">
                         {% csrf_token %}
@@ -231,7 +217,7 @@
                           <i class="fas fa-trash"></i>
                         </button>
                       </form>
-                    {% else %}
+                    {% elif job.job_type == 'create' %}
                       <form method="post" action="{% url 'vmcreator_delete_job' job.id %}" style="display:inline;" onsubmit="return confirm('Delete this job? This cannot be undone.')">
                         {% csrf_token %}
                         <button type="submit" class="button is-small is-danger is-light" title="Delete job">
@@ -240,16 +226,46 @@
                       </form>
                     {% endif %}
 
+                  {% elif job.stage == 'QUEUED' %}
+                    {# Cancel queued jobs #}
+                    {% if job.job_type == 'import' %}
+                      <form method="post" action="{% url 'importer_cancel_job' job.id %}" style="display:inline;" onsubmit="return confirm('Cancel this job?')">
+                        {% csrf_token %}
+                        <button type="submit" class="button is-small is-warning is-light" title="Cancel job">
+                          <i class="fas fa-ban"></i>
+                        </button>
+                      </form>
+                    {% elif job.job_type == 'create' %}
+                      <form method="post" action="{% url 'vmcreator_cancel_job' job.id %}" style="display:inline;" onsubmit="return confirm('Cancel this job?')">
+                        {% csrf_token %}
+                        <button type="submit" class="button is-small is-warning is-light" title="Cancel job">
+                          <i class="fas fa-ban"></i>
+                        </button>
+                      </form>
+                    {% endif %}
+
                   {% else %}
-                    {# In progress — view pipeline #}
+                    {# In progress — view pipeline + cancel #}
                     {% if job.job_type == 'import' %}
                       <a href="{% url 'importer_progress' job.id %}" class="button is-small is-info is-light" title="View progress">
                         <i class="fas fa-spinner fa-spin"></i>
                       </a>
-                    {% else %}
+                      <form method="post" action="{% url 'importer_cancel_job' job.id %}" style="display:inline;" onsubmit="return confirm('Cancel this running job?')">
+                        {% csrf_token %}
+                        <button type="submit" class="button is-small is-warning is-light" title="Cancel job">
+                          <i class="fas fa-ban"></i>
+                        </button>
+                      </form>
+                    {% elif job.job_type == 'create' %}
                       <a href="{% url 'vmcreator_progress' job.id %}" class="button is-small is-info is-light" title="View progress">
                         <i class="fas fa-spinner fa-spin"></i>
                       </a>
+                      <form method="post" action="{% url 'vmcreator_cancel_job' job.id %}" style="display:inline;" onsubmit="return confirm('Cancel this running job?')">
+                        {% csrf_token %}
+                        <button type="submit" class="button is-small is-warning is-light" title="Cancel job">
+                          <i class="fas fa-ban"></i>
+                        </button>
+                      </form>
                     {% endif %}
                   {% endif %}
                 </td>
