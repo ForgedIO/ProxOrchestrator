@@ -1,5 +1,8 @@
+import json
 import logging
+import os
 import shlex
+import tempfile
 
 from celery import shared_task
 
@@ -51,6 +54,12 @@ def run_lxc_create_pipeline(self, job_id):
     node = job.node or config.default_node
     assigned_vmid = None
 
+    # Clear the password from the DB immediately — it's only needed for pct create.
+    if ct_config.get("password"):
+        sanitised = {**ct_config, "password": ""}
+        job.ct_config_json = json.dumps(sanitised)
+        job.save(update_fields=["ct_config_json", "updated_at"])
+
     try:
         api = config.get_api_client()
 
@@ -58,10 +67,19 @@ def run_lxc_create_pipeline(self, job_id):
         template_ref = job.template  # e.g. "debian-12-standard_12.7-1_amd64.tar.zst"
         storage = job.template_storage or config.default_storage
 
-        # Check if template is already downloaded
+        # Check if template is already downloaded — parse line-by-line to avoid
+        # false positives when one template name is a prefix of another.
         with config.get_ssh_client() as ssh:
             out, _, rc = ssh.run(["pveam", "list", storage])
-            already_downloaded = template_ref in (out or "")
+            downloaded_names = set()
+            if rc == 0 and out:
+                for line in out.strip().splitlines()[1:]:  # skip header
+                    parts = line.split()
+                    if parts:
+                        volid = parts[0]
+                        name = volid.split("/")[-1] if "/" in volid else volid
+                        downloaded_names.add(name)
+            already_downloaded = template_ref in downloaded_names
 
         if not already_downloaded:
             job.set_stage(LxcCreateJob.STAGE_DOWNLOADING,
@@ -83,8 +101,7 @@ def run_lxc_create_pipeline(self, job_id):
 
         assigned_vmid = vmid
 
-        # Build rootfs spec — prefer local-lvm over local for container rootfs
-        rootfs_storage = ct_config.get("rootfs_storage") or "local-lvm"
+        rootfs_storage = ct_config.get("rootfs_storage") or config.default_storage
         rootfs_size = max(1, int(ct_config.get("rootfs_size", 8)))
 
         pct_args = [
@@ -123,16 +140,20 @@ def run_lxc_create_pipeline(self, job_id):
         if password:
             pct_args += ["--password", password]
 
-        # SSH public key
+        # SSH public key — write via SFTP to avoid bash -c string interpolation
         ssh_key = ct_config.get("ssh_public_key", "").strip()
+        remote_sshkey_path = None
         if ssh_key:
-            # Write key to a temp file on Proxmox, pass to pct
-            with config.get_ssh_client() as ssh_client:
-                ssh_client.run_checked([
-                    "bash", "-c",
-                    f"echo {shlex.quote(ssh_key)} > /tmp/pct_sshkey_{vmid}.pub"
-                ])
-            pct_args += ["--ssh-public-keys", f"/tmp/pct_sshkey_{vmid}.pub"]
+            remote_sshkey_path = f"/tmp/pct_sshkey_{vmid}.pub"
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".pub", delete=False) as tmp:
+                tmp.write(ssh_key)
+                tmp_path = tmp.name
+            try:
+                with config.get_sftp_client() as sftp:
+                    sftp.put(tmp_path, remote_sshkey_path)
+            finally:
+                os.unlink(tmp_path)
+            pct_args += ["--ssh-public-keys", remote_sshkey_path]
 
         # Unprivileged
         if ct_config.get("unprivileged", True):
@@ -147,10 +168,10 @@ def run_lxc_create_pipeline(self, job_id):
             ssh.run_checked(pct_args)
 
         # Clean up temp SSH key file
-        if ssh_key:
+        if remote_sshkey_path:
             try:
                 with config.get_ssh_client() as ssh:
-                    ssh.run(["rm", "-f", f"/tmp/pct_sshkey_{vmid}.pub"])
+                    ssh.run(["rm", "-f", remote_sshkey_path])
             except Exception:
                 pass
 

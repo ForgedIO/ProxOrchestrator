@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from apps.lxc.tasks import run_lxc_create_pipeline
 from apps.proxmox.api import ProxmoxAPIError
 from apps.vmcreator.stages import build_stages
 from apps.wizard.models import ProxmoxConfig
@@ -600,8 +601,6 @@ def lxc_configure(request, job_id):
         job.stage = LxcCreateJob.STAGE_QUEUED
         job.save()
 
-        # Dispatch Celery task
-        from apps.lxc.tasks import run_lxc_create_pipeline
         run_lxc_create_pipeline.delay(job.pk)
 
         return redirect("lxc_progress", job_id=job.pk)
