@@ -22,7 +22,42 @@
     {% block configure_banner %}{% endblock %}
 
     {# Platform detection banner #}
-    {% if source_platform == "vmware" %}
+    {% if ovf_data %}
+    <div style="background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);border:1px solid #86efac;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:1rem;">
+      <div style="flex-shrink:0;width:40px;height:40px;border-radius:8px;background:#22c55e;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-file-archive" style="color:#fff;font-size:1rem;"></i>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;color:#1a1a2e;font-size:0.95rem;margin-bottom:0.35rem;">
+          OVA Settings Detected
+        </div>
+        <div style="font-size:0.83rem;color:#4a4a4a;line-height:1.6;">
+          Hardware settings have been read from the OVF descriptor inside the OVA package.
+          {% if ovf_data.os_description %}
+            <span style="margin-left:0.5rem;">
+              <i class="fas fa-desktop" style="color:#22c55e;margin-right:0.3rem;"></i>
+              <strong>OS:</strong> {{ ovf_data.os_description }}
+            </span>
+          {% endif %}
+          {% if ovf_data.disks|length > 1 %}
+            <span style="margin-left:0.5rem;">
+              <i class="fas fa-hdd" style="color:#22c55e;margin-right:0.3rem;"></i>
+              <strong>{{ ovf_data.disks|length }} disks</strong> detected
+            </span>
+          {% endif %}
+          {% if ovf_data.firmware == "ovmf" %}
+            <span style="margin-left:0.5rem;">
+              <i class="fas fa-microchip" style="color:#22c55e;margin-right:0.3rem;"></i>
+              <strong>UEFI</strong> firmware
+            </span>
+          {% endif %}
+        </div>
+        <div style="font-size:0.78rem;color:#7a7a7a;margin-top:0.4rem;">
+          All settings are pre-filled from the OVA. Review and adjust as needed, then click <strong>Deploy VM</strong>.
+        </div>
+      </div>
+    </div>
+    {% elif source_platform == "vmware" %}
     <div style="background:linear-gradient(135deg,#fff8f0 0%,#fffbeb 100%);border:1px solid #fbbf24;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:1rem;">
       <div style="flex-shrink:0;width:40px;height:40px;border-radius:8px;background:#f59e0b;display:flex;align-items:center;justify-content:center;">
         <i class="fas fa-exchange-alt" style="color:#fff;font-size:1rem;"></i>
@@ -72,8 +107,9 @@
     </div>
     {% endif %}
 
-    {# ---- SECTION: Hardware Preset (hidden for .px imports) ---- #}
+    {# ---- SECTION: Hardware Preset (hidden for .px and OVA imports) ---- #}
     {% block hardware_preset_section %}
+    {% if not ovf_data %}
     <div class="form-section">
       <div class="form-section-header" id="section-preset-header">
         <div style="display:flex;align-items:center;gap:0.6rem;">
@@ -106,6 +142,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
     {% endblock hardware_preset_section %}
 
     {# Non-field errors #}
