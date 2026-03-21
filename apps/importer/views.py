@@ -14,8 +14,10 @@ from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
 from apps.importer.forms import ALLOWED_EXTENSIONS
+from apps.importer.forms import HARDWARE_PRESETS
 from apps.importer.forms import UploadForm
 from apps.importer.forms import VMConfigForm
+from apps.importer.forms import is_vmware_source
 from apps.importer.forms import sanitize_vm_name
 from apps.importer.models import ImportJob
 from apps.vmcreator.stages import IMPORT_STAGES, IMPORT_STAGES_PROXMOX_SOURCE, build_stages
@@ -182,6 +184,9 @@ def configure(request, job_id):
             "suggested_vmid": suggested_vmid,
             "virtio_iso_configured": bool(config.virtio_iso),
             "virtio_iso": config.virtio_iso or "",
+            "is_vmware_source": is_vmware_source(job.upload_filename),
+            "hardware_presets": HARDWARE_PRESETS,
+            "hardware_presets_json": json.dumps(HARDWARE_PRESETS),
         },
     )
 
