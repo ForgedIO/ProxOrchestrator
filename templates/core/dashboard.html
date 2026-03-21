@@ -162,7 +162,7 @@
         </a>
         <a href="{% url 'lxc_list' %}" class="button is-light is-medium is-fullwidth" style="font-weight:600;justify-content:flex-start;padding-left:1.25rem;border:1px solid #e8ecf0;">
           <span class="icon"><i class="fas fa-cube"></i></span>
-          <span>View LXC Containers</span>
+          <span>View Container Inventory</span>
         </a>
       </div>
     </div>
@@ -226,7 +226,7 @@
                 <td style="vertical-align:middle;text-align:right;white-space:nowrap;">
                   {% if job.stage == 'DONE' %}
                     {% if job.job_type == 'lxc_create' %}
-                      <a href="{% url 'lxc_list' %}" class="button is-small is-light" title="View LXC Containers">
+                      <a href="{% url 'lxc_list' %}" class="button is-small is-light" title="View Container Inventory">
                         <i class="fas fa-cube"></i>
                       </a>
                     {% elif job.vmid %}

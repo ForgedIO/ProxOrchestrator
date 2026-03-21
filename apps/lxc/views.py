@@ -560,6 +560,61 @@ def template_browser(request):
 
 
 @login_required
+@require_POST
+def template_delete(request):
+    """HTMX endpoint: delete a downloaded template from a Proxmox storage pool."""
+    config = ProxmoxConfig.get_config()
+    storage = request.POST.get("storage", "").strip()
+    template = request.POST.get("template", "").strip()
+
+    if not storage or not template:
+        return render(request, "lxc/partials/template_list.html", {
+            "templates": [], "error": "Missing storage or template name.",
+        })
+
+    volid = f"{storage}:vztmpl/{template}"
+    try:
+        with config.get_ssh_client() as ssh:
+            _, stderr, rc = ssh.run(["pveam", "remove", volid])
+            if rc != 0:
+                err_msg = stderr.strip() if stderr else f"Failed to remove {template}"
+                return render(request, "lxc/partials/template_list.html", {
+                    "templates": [], "error": err_msg,
+                })
+    except Exception as exc:
+        return render(request, "lxc/partials/template_list.html", {
+            "templates": [], "error": str(exc),
+        })
+
+    # Re-render the downloaded list so the deleted template disappears
+    templates = []
+    error = None
+    try:
+        with config.get_ssh_client() as ssh:
+            out, _, rc = ssh.run(["pveam", "list", storage])
+            if rc == 0 and out:
+                for line in out.strip().splitlines()[1:]:
+                    parts = line.split()
+                    if parts:
+                        vid = parts[0]
+                        name = vid.split("/")[-1] if "/" in vid else vid
+                        templates.append({
+                            "name": name,
+                            "volid": vid,
+                            "downloaded": True,
+                        })
+    except Exception as exc:
+        error = str(exc)
+
+    return render(request, "lxc/partials/template_list.html", {
+        "templates": templates,
+        "storage": storage,
+        "section": "downloaded",
+        "error": error,
+    })
+
+
+@login_required
 def lxc_configure(request, job_id):
     """Step 2: Configure the LXC container before creation."""
     job = get_object_or_404(LxcCreateJob, pk=job_id)
