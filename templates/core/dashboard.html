@@ -270,11 +270,17 @@
                     {% endif %}
 
                   {% elif job.stage == 'QUEUED' %}
-                    {# LXC: show progress link; import/create: cancel #}
+                    {# Queued — cancel button for all job types #}
                     {% if job.job_type == 'lxc_create' %}
                       <a href="{% url 'lxc_progress' job.id %}" class="button is-small is-info is-light" title="View progress">
                         <i class="fas fa-tasks"></i>
                       </a>
+                      <form method="post" action="{% url 'lxc_cancel_job' job.id %}" style="display:inline;" onsubmit="return confirm('Cancel this job?')">
+                        {% csrf_token %}
+                        <button type="submit" class="button is-small is-warning is-light" title="Cancel job">
+                          <i class="fas fa-ban"></i>
+                        </button>
+                      </form>
                     {% elif job.job_type == 'import' %}
                       <form method="post" action="{% url 'importer_cancel_job' job.id %}" style="display:inline;" onsubmit="return confirm('Cancel this job?')">
                         {% csrf_token %}
@@ -307,6 +313,12 @@
                       <a href="{% url 'lxc_progress' job.id %}" class="button is-small is-info is-light" title="View progress">
                         <i class="fas fa-spinner fa-spin"></i>
                       </a>
+                      <form method="post" action="{% url 'lxc_cancel_job' job.id %}" style="display:inline;" onsubmit="return confirm('Cancel this running job?')">
+                        {% csrf_token %}
+                        <button type="submit" class="button is-small is-warning is-light" title="Cancel job">
+                          <i class="fas fa-ban"></i>
+                        </button>
+                      </form>
                     {% else %}
                       <a href="{% url 'vmcreator_progress' job.id %}" class="button is-small is-info is-light" title="View progress">
                         <i class="fas fa-spinner fa-spin"></i>
