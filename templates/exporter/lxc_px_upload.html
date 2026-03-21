@@ -4,7 +4,7 @@
 {% block help_slug %}lxc-px-upload{% endblock %}
 
 {% block page_actions %}
-  <a href="{% url 'export_index' %}" class="button is-light is-small">
+  <a href="{% url 'lxc_export_index' %}" class="button is-light is-small">
     <span class="icon is-small"><i class="fas fa-arrow-left"></i></span>
     <span>Back to Exports</span>
   </a>
@@ -39,7 +39,7 @@
           </div>
 
           <div style="display:flex;justify-content:flex-end;gap:1rem;">
-            <a href="{% url 'export_index' %}" class="button is-light is-medium" style="font-weight:600;">Cancel</a>
+            <a href="{% url 'lxc_export_index' %}" class="button is-light is-medium" style="font-weight:600;">Cancel</a>
             <button type="submit" class="button is-info is-medium" id="btn-submit" style="font-weight:600;">
               <span class="icon"><i class="fas fa-arrow-right"></i></span>
               <span>Upload &amp; Continue</span>

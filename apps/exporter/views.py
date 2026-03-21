@@ -86,17 +86,25 @@ def _export_stage_list(job):
 
 @login_required
 def export_index(request):
-    """Dashboard: list recent export jobs + link to import a .px package."""
+    """Dashboard: list recent VM export jobs + link to import a .px package."""
     export_jobs = ExportJob.objects.select_related("created_by").order_by("-created_at")[:20]
     px_import_jobs = PxImportJob.objects.select_related("created_by").order_by("-created_at")[:10]
-    lxc_export_jobs = LxcExportJob.objects.select_related("created_by").order_by("-created_at")[:20]
-    lxc_px_import_jobs = LxcPxImportJob.objects.select_related("created_by").order_by("-created_at")[:10]
     return render(request, "exporter/export_index.html", {
         "export_jobs": export_jobs,
         "px_import_jobs": px_import_jobs,
+        "help_slug": "exporter",
+    })
+
+
+@login_required
+def lxc_export_index(request):
+    """Dashboard: list recent LXC export/import jobs."""
+    lxc_export_jobs = LxcExportJob.objects.select_related("created_by").order_by("-created_at")[:20]
+    lxc_px_import_jobs = LxcPxImportJob.objects.select_related("created_by").order_by("-created_at")[:10]
+    return render(request, "exporter/lxc_export_index.html", {
         "lxc_export_jobs": lxc_export_jobs,
         "lxc_px_import_jobs": lxc_px_import_jobs,
-        "help_slug": "exporter",
+        "help_slug": "lxc-export",
     })
 
 
@@ -604,7 +612,7 @@ def lxc_export_delete_job(request, job_id):
     label = job.ct_name or f"CT {job.vmid}"
     job.delete()
     messages.success(request, f'Export of "{label}" deleted.')
-    return redirect("export_index")
+    return redirect("lxc_export_index")
 
 
 # ── LXC .px Import views ─────────────────────────────────────────────────────
@@ -805,4 +813,4 @@ def lxc_px_delete_job(request, job_id):
     label = job.ct_name or f"job #{job_id}"
     job.delete()
     messages.success(request, f'Container import "{label}" deleted.')
-    return redirect("export_index")
+    return redirect("lxc_export_index")
