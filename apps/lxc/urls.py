@@ -16,6 +16,7 @@ urlpatterns = [
     path("new/", views.lxc_create, name="lxc_create"),
     path("new/submit/", views.lxc_create_submit, name="lxc_create_submit"),
     path("new/templates/", views.template_browser, name="lxc_template_browser"),
+    path("new/templates/delete/", views.template_delete, name="lxc_template_delete"),
     path("new/<int:job_id>/configure/", views.lxc_configure, name="lxc_configure"),
     path("new/<int:job_id>/progress/", views.lxc_progress, name="lxc_progress"),
     path("new/<int:job_id>/status/", views.lxc_job_status, name="lxc_job_status"),
