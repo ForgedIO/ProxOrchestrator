@@ -1149,7 +1149,18 @@
       method: 'POST',
       body: formData,
     })
-    .then(r => r.text())
+    .then(r => {
+      if (!r.ok) {
+        return r.text().then(html => {
+          statusEl.innerHTML = '<span style="color:#cc0f35;"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i>' +
+            (html.trim() || 'Unsupported file type.') + '</span>';
+          row.dataset.fileId = '';
+          serializeExtraDisks();
+          throw new Error('Upload rejected');
+        });
+      }
+      return r.text();
+    })
     .then(html => {
       statusEl.innerHTML = html;
       // Extract file_id from the hidden input in the returned HTML
@@ -1158,11 +1169,16 @@
       const fileIdInput = tmp.querySelector('.extra-disk-file-id');
       if (fileIdInput) {
         row.dataset.fileId = fileIdInput.value;
+      } else {
+        row.dataset.fileId = '';
       }
       serializeExtraDisks();
     })
-    .catch(() => {
-      statusEl.innerHTML = '<span style="color:#cc0f35;">Upload failed. Please try again.</span>';
+    .catch(err => {
+      if (err.message !== 'Upload rejected') {
+        statusEl.innerHTML = '<span style="color:#cc0f35;"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i>Upload failed. Please try again.</span>';
+        row.dataset.fileId = '';
+      }
     });
   }
 
