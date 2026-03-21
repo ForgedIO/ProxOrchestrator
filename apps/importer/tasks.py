@@ -381,12 +381,13 @@ def _create_vm_and_import(job, config, remote_qcow2_path, job_id):
                 imp_out, _, _ = ssh.run(["qm", "importdisk", str(vmid),
                                          remote_extra_qcow2, extra_storage, "--format", "qcow2"])
                 logger.info("ImportJob %d: extra disk importdisk output: %s", job_id, imp_out.strip())
-                # Parse disk ref from qm config
+                # Parse disk ref from qm config — take the first unused entry only
                 cfg_out, _, _ = ssh.run(["qm", "config", str(vmid)])
                 extra_ref = None
                 for cfg_line in cfg_out.splitlines():
                     if cfg_line.startswith("unused"):
                         extra_ref = cfg_line.split(":", 1)[1].strip()
+                        break
                 if extra_ref:
                     ssh.run_checked(["qm", "set", str(vmid), f"--{slot}", extra_ref])
                     logger.info("ImportJob %d: attached extra disk as %s: %s", job_id, slot, extra_ref)
@@ -419,6 +420,7 @@ def _create_vm_and_import(job, config, remote_qcow2_path, job_id):
                 for cfg_line in cfg_out.splitlines():
                     if cfg_line.startswith("unused"):
                         extra_ref = cfg_line.split(":", 1)[1].strip()
+                        break
                 if extra_ref:
                     ssh.run_checked(["qm", "set", str(vmid), f"--{slot}", extra_ref])
                     logger.info("ImportJob %d: attached proxmox extra disk as %s: %s", job_id, slot, extra_ref)
