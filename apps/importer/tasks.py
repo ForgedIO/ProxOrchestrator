@@ -290,6 +290,8 @@ def _create_vm_and_import(job, config, remote_qcow2_path, job_id):
         qm_create_args += ["--protection", "1"]
     if vm_config.get("numa"):
         qm_create_args += ["--numa", "1"]
+    if vm_config.get("serial_port"):
+        qm_create_args += ["--serial0", "socket"]
 
     description = vm_config.get("description", "").strip()
     if description:

@@ -59,7 +59,8 @@
           {% endif %}
         </div>
         <div style="font-size:0.78rem;color:#7a7a7a;margin-top:0.4rem;">
-          All settings are pre-filled from the OVA. Review and adjust as needed, then click <strong>Deploy VM</strong>.
+          Settings are pre-filled from the OVA. For vendor appliances (Cisco, Aruba, etc.),
+          select a <strong>hardware preset</strong> below to override with KVM-compatible settings.
         </div>
       </div>
     </div>
@@ -113,9 +114,8 @@
     </div>
     {% endif %}
 
-    {# ---- SECTION: Hardware Preset (hidden for .px and OVA imports) ---- #}
+    {# ---- SECTION: Hardware Preset (hidden for .px imports only) ---- #}
     {% block hardware_preset_section %}
-    {% if not ovf_data %}
     <div class="form-section">
       <div class="form-section-header" id="section-preset-header">
         <div style="display:flex;align-items:center;gap:0.6rem;">
@@ -148,7 +148,6 @@
         </div>
       </div>
     </div>
-    {% endif %}
     {% endblock hardware_preset_section %}
 
     {# Non-field errors #}
@@ -710,6 +709,18 @@
               <p class="field-hint" style="margin-left:1.5rem;">Improves VNC pointer sync.</p>
             </div>
           </div>
+        </div>
+        <div class="columns">
+          <div class="column">
+            <div class="field">
+              <label class="checkbox">
+                <input type="checkbox" name="serial_port" {% if form.serial_port.value %}checked{% endif %}>
+                &nbsp;<strong>Add Serial Port</strong>
+              </label>
+              <p class="field-hint" style="margin-left:1.5rem;">Required for some appliances (e.g. Cisco Expressway install wizard).</p>
+            </div>
+          </div>
+          <div class="column"></div>
         </div>
       </div>
     </div>

@@ -213,6 +213,7 @@ HARDWARE_PRESETS = {
                 "os_type": "l26", "machine": "pc", "bios": "seabios",
                 "vga_type": "std", "disk_cache": "none",
                 "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                "serial_port": True,
             },
         },
         {
@@ -224,6 +225,7 @@ HARDWARE_PRESETS = {
                 "os_type": "l26", "machine": "pc", "bios": "seabios",
                 "vga_type": "std", "disk_cache": "none",
                 "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                "serial_port": True,
             },
         },
         {
@@ -235,6 +237,7 @@ HARDWARE_PRESETS = {
                 "os_type": "l26", "machine": "pc", "bios": "seabios",
                 "vga_type": "std", "disk_cache": "none",
                 "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                "serial_port": True,
             },
         },
         {
@@ -246,6 +249,7 @@ HARDWARE_PRESETS = {
                 "os_type": "l26", "machine": "pc", "bios": "seabios",
                 "vga_type": "std", "disk_cache": "none",
                 "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                "serial_port": True,
             },
         },
         {
@@ -257,6 +261,7 @@ HARDWARE_PRESETS = {
                 "os_type": "l26", "machine": "pc", "bios": "seabios",
                 "vga_type": "std", "disk_cache": "none",
                 "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                "serial_port": True,
             },
         },
         {
@@ -555,6 +560,11 @@ class VMConfigForm(forms.Form):
     tablet = forms.BooleanField(
         required=False,
         label="Enable USB Tablet (for VNC pointer sync)",
+    )
+    serial_port = forms.BooleanField(
+        required=False,
+        label="Add Serial Port (socket)",
+        help_text="Required for some appliances (e.g. Cisco Expressway install wizard).",
     )
     protection = forms.BooleanField(
         required=False,
