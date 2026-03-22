@@ -249,7 +249,14 @@
       const el = evt.detail.elt || evt.detail.target;
       const id = el ? (el.id || el.tagName) : 'unknown';
       const pending = document.querySelectorAll('#vm-tbody tr[hx-trigger]').length;
-      console.log('[HTMX]', eventName, 'el=' + id, 'pendingRows=' + pending);
+      // Also check with broader selector
+      const allPending = document.querySelectorAll('tr[hx-trigger]').length;
+      console.log('[HTMX]', eventName, 'el=' + id, 'pendingInTbody=' + pending, 'pendingAnywhere=' + allPending);
+      // After row swaps, log the actual row content
+      if (eventName === 'htmx:afterSwap' && id && id.startsWith('vm-row-')) {
+        const row = document.getElementById(id);
+        console.log('[HTMX] row after swap:', id, 'hasHxTrigger=' + (row ? row.hasAttribute('hx-trigger') : 'NOT_FOUND'), 'innerHTML=' + (row ? row.innerHTML.substring(0, 100) : 'N/A'));
+      }
     });
   });
 
