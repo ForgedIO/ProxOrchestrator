@@ -220,14 +220,28 @@
     }
   });
 
-  // Pause background table poll while any row is in a pending/transitioning state.
+  // Pause background table poll while any container action is in-flight or pending.
+  let ctActionPending = 0;
+
   document.body.addEventListener('htmx:beforeRequest', function(evt) {
     const el = evt.detail.elt;
-    if (el && el.id === 'ct-table-wrapper') {
-      const hasPending = document.querySelectorAll('#ct-tbody tr[hx-trigger]').length > 0;
-      if (hasPending) {
-        evt.preventDefault();
-      }
+    if (el && el.closest && el.closest('.vm-actions')) {
+      ctActionPending++;
+      setTimeout(function() { ctActionPending = Math.max(0, ctActionPending - 1); }, 30000);
+    }
+  });
+
+  document.body.addEventListener('htmx:afterSwap', function(evt) {
+    const el = evt.detail.elt;
+    if (el && el.id && el.id.startsWith('ct-row-') && !el.hasAttribute('hx-trigger')) {
+      ctActionPending = Math.max(0, ctActionPending - 1);
+    }
+  });
+
+  document.body.addEventListener('htmx:beforeRequest', function(evt) {
+    const el = evt.detail.elt;
+    if (el && el.id === 'ct-table-wrapper' && ctActionPending > 0) {
+      evt.preventDefault();
     }
   });
 
