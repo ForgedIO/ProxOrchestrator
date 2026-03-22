@@ -221,10 +221,10 @@
   });
 
   // Pause background table poll while any row is in a pending/transitioning state.
-  document.addEventListener('htmx:configRequest', function(evt) {
+  document.body.addEventListener('htmx:beforeRequest', function(evt) {
     const el = evt.detail.elt;
-    if (el && el.id === 'ct-table-wrapper' && el.getAttribute('hx-trigger') === 'every 10s') {
-      const hasPending = document.querySelectorAll('#ct-tbody tr[hx-trigger*="every 3s"]').length > 0;
+    if (el && el.id === 'ct-table-wrapper') {
+      const hasPending = document.querySelectorAll('#ct-tbody tr[hx-trigger]').length > 0;
       if (hasPending) {
         evt.preventDefault();
       }
