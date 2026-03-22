@@ -14,7 +14,8 @@ main              ← what the public downloads and uses
 dev               ← where we test finished features together
   ↑
 feature/your-feature   ← where you do your work
-hotfix/your-fix        ← for urgent fixes only
+hotfix/your-fix        ← for urgent fixes only - cloned off main then pushed into dev and bellow
+bugfix/your-fix        ← for bug fixes that don't impact the working functionality - cloned off of dev, pulled into dev then pushed into main at next release cycle
 ```
 
 The key rule is simple:
