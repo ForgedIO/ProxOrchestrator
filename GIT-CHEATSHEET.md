@@ -23,6 +23,8 @@
 | `git checkout -b <branch>` | Create a new branch and switch to it |
 | `git branch -d <branch>` | Delete a local branch (after merge) |
 | `git fetch --all` | Download all remote branches (doesn't change your code) |
+| `git fetch --prune` | Fetch and remove stale remote branches that were deleted on GitHub |
+| `git config --global fetch.prune true` | Auto-prune on every fetch (run once) |
 
 ## Branch Types — When to Use What
 
