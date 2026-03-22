@@ -55,7 +55,8 @@
      hx-trigger="every 10s"
      hx-select="#ct-table-wrapper"
      hx-swap="outerHTML"
-     hx-indicator="#refresh-spinner">
+     hx-indicator="#refresh-spinner"
+     hx-disinherit="hx-select">
   <div class="card-header">
     <i class="fas fa-cube" style="color:#3273dc;"></i> Container Inventory
     {% if node_name %}

@@ -64,7 +64,8 @@
      hx-trigger="every 10s"
      hx-select="#vm-table-wrapper"
      hx-swap="outerHTML"
-     hx-indicator="#refresh-spinner">
+     hx-indicator="#refresh-spinner"
+     hx-disinherit="hx-select">
   <div class="card-header">
     <i class="fas fa-server" style="color:#3273dc;"></i> Virtual Machines
     {% if node_name %}
