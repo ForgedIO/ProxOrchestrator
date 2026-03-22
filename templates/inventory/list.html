@@ -243,35 +243,17 @@
     }
   });
 
-  // Pause background table poll while any VM action is in-flight or pending.
-  // Without this, the 10s full-table refresh overwrites the pending spinner row.
-  let vmActionPending = 0;
-
-  // Set flag when an action button is clicked (before response arrives)
-  document.body.addEventListener('htmx:beforeRequest', function(evt) {
-    const el = evt.detail.elt;
-    if (el && el.closest && el.closest('.vm-actions')) {
-      vmActionPending++;
-      // Auto-clear after 30s in case something goes wrong
-      setTimeout(function() { vmActionPending = Math.max(0, vmActionPending - 1); }, 30000);
-    }
-  });
-
-  // Clear flag when the pending row's self-poll resolves to a normal row
-  document.body.addEventListener('htmx:afterSwap', function(evt) {
-    const el = evt.detail.elt;
-    // A pending row resolved when a tr with hx-trigger (pending) is replaced
-    // by a tr without hx-trigger (normal row)
-    if (el && el.id && el.id.startsWith('vm-row-') && !el.hasAttribute('hx-trigger')) {
-      vmActionPending = Math.max(0, vmActionPending - 1);
-    }
-  });
-
-  // Cancel background table poll while actions are pending
-  document.body.addEventListener('htmx:beforeRequest', function(evt) {
-    const el = evt.detail.elt;
-    if (el && el.id === 'vm-table-wrapper' && vmActionPending > 0) {
-      evt.preventDefault();
+  // Prevent background table poll from overwriting pending action rows.
+  // When the 10s poll response arrives, check if any rows are mid-transition.
+  // If so, discard the poll response entirely — the pending row's own 3s poll
+  // will update it when the action completes.
+  document.body.addEventListener('htmx:beforeSwap', function(evt) {
+    const target = evt.detail.target;
+    if (target && target.id === 'vm-table-wrapper') {
+      const hasPending = target.querySelector('tr[hx-trigger*="every"]');
+      if (hasPending) {
+        evt.detail.shouldSwap = false;
+      }
     }
   });
 
