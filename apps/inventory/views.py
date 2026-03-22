@@ -51,8 +51,9 @@ def list_vms(request):
                 vm["uptime_human"] = _uptime_human(vm.get("uptime", 0))
                 vms.append(vm)
 
-            # Sort: running first, then by vmid
-            vms.sort(key=lambda v: (v.get("status") != "running", v.get("vmid", 0)))
+            # Sort by VMID only — keeps rows in a stable position during
+            # state transitions so they don't jump around after stop/start
+            vms.sort(key=lambda v: v.get("vmid", 0))
 
         except ProxmoxAPIError as exc:
             error = f"Could not load VM inventory: {exc.message}"
@@ -173,6 +174,13 @@ def vm_row_status(request, vmid):
             request,
             "inventory/partials/vm_row_error.html",
             {"vmid": vmid, "error": exc.message},
+        )
+    except Exception as exc:
+        logger.warning("vm_row_status vmid %s: unexpected error: %s", vmid, exc)
+        return render(
+            request,
+            "inventory/partials/vm_row_error.html",
+            {"vmid": vmid, "error": f"Could not check VM status: {exc}"},
         )
 
     # If we know what state we're waiting for, keep the pending row until we get there
