@@ -133,6 +133,14 @@ def login_view(request):
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
+
+        # Allow login with email address — look up the username
+        if "@" in username:
+            try:
+                username = User.objects.get(email__iexact=username).username
+            except User.DoesNotExist:
+                pass  # Let authenticate() fail normally
+
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
