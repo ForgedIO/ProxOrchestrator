@@ -319,7 +319,8 @@ def list_lxcs(request):
                 ct["uptime_human"] = _uptime_human(ct.get("uptime", 0))
                 containers.append(ct)
 
-            containers.sort(key=lambda c: (c.get("status") != "running", c.get("vmid", 0)))
+            # Sort by VMID only — keeps rows stable during state transitions
+            containers.sort(key=lambda c: c.get("vmid", 0))
 
         except ProxmoxAPIError as exc:
             error = f"Could not load LXC inventory: {exc.message}"
@@ -431,6 +432,13 @@ def lxc_row_status(request, vmid):
             request,
             "lxc/partials/ct_row_error.html",
             {"vmid": vmid, "error": exc.message},
+        )
+    except Exception as exc:
+        logger.warning("lxc_row_status vmid %s: unexpected error: %s", vmid, exc)
+        return render(
+            request,
+            "lxc/partials/ct_row_error.html",
+            {"vmid": vmid, "error": f"Could not check container status: {exc}"},
         )
 
     target_status = ACTION_TARGET_STATUS.get(action)

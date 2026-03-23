@@ -64,7 +64,8 @@
      hx-trigger="every 10s"
      hx-select="#vm-table-wrapper"
      hx-swap="outerHTML"
-     hx-indicator="#refresh-spinner">
+     hx-indicator="#refresh-spinner"
+     hx-disinherit="hx-select">
   <div class="card-header">
     <i class="fas fa-server" style="color:#3273dc;"></i> Virtual Machines
     {% if node_name %}
@@ -239,6 +240,27 @@
       const csrfToken = document.cookie.match(/csrftoken=([^;]+)/);
       if (csrfToken) {
         evt.detail.headers['X-CSRFToken'] = csrfToken[1];
+      }
+    }
+  });
+
+  // Prevent background table poll from overwriting pending action rows.
+  // Track when the first pending row appeared so we can timeout after 60s.
+  let vmPendingSince = 0;
+  document.body.addEventListener('htmx:beforeSwap', function(evt) {
+    const target = evt.detail.target;
+    if (target && target.id === 'vm-table-wrapper') {
+      const hasPending = target.querySelector('tr[hx-trigger*="every"]');
+      if (hasPending) {
+        if (!vmPendingSince) vmPendingSince = Date.now();
+        // Allow table refresh after 60s to prevent permanent freeze
+        if (Date.now() - vmPendingSince > 60000) {
+          vmPendingSince = 0;
+          return;  // Allow the swap
+        }
+        evt.detail.shouldSwap = false;
+      } else {
+        vmPendingSince = 0;
       }
     }
   });
