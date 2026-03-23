@@ -247,19 +247,19 @@ def password_reset_request(request):
             messages.error(request, "Password recovery is unavailable — email is not configured.")
             return redirect("password_reset_request")
 
-        # Always show the same message to avoid leaking whether an email exists
-        messages.success(
-            request,
-            "If an account exists with that email address, a password reset link has been sent.",
-        )
-
         # Only send for local auth users with a matching email
         try:
             user = User.objects.get(email__iexact=email, is_active=True)
-            # Skip non-local users (LDAP / Entra ID manage their own passwords)
+            # Tell directory users to reset via their provider
             auth_source = getattr(getattr(user, "profile", None), "auth_source", "local")
             if auth_source != "local":
-                logger.info("password_reset: skipping non-local user %s (source=%s)", user.username, auth_source)
+                logger.info("password_reset: directory user %s (source=%s)", user.username, auth_source)
+                messages.warning(
+                    request,
+                    "This is an external directory account. "
+                    "Password recovery is disabled for this account — "
+                    "please reset your password through your organisation's directory (LDAP or Entra ID).",
+                )
                 return redirect("password_reset_request")
 
             # Build reset link
@@ -282,6 +282,11 @@ def password_reset_request(request):
         except Exception as exc:
             logger.error("password_reset: failed to send email: %s", exc)
 
+        # Generic message for local users and unknown emails (no account enumeration)
+        messages.success(
+            request,
+            "If a local account exists with that email address, a password reset link has been sent.",
+        )
         return redirect("password_reset_request")
 
     return render(request, "core/password_reset_request.html", {
