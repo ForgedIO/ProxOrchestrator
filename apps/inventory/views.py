@@ -72,14 +72,6 @@ def list_vms(request):
                 vm["node"] = node_name
                 vm["cpu_pct"] = round((vm.get("cpu") or 0) * 100, 1)
                 vm["uptime_human"] = _uptime_human(vm.get("uptime", 0))
-                # Try to get IP from QEMU guest agent (only for running VMs)
-                vm["ip_address"] = ""
-                if vm.get("status") == "running":
-                    try:
-                        ifaces = api.get_vm_agent_interfaces(node_name, vm["vmid"])
-                        vm["ip_address"] = _extract_ipv4(ifaces, primary_only=True)
-                    except Exception:
-                        pass  # Guest agent not installed or not responding
                 vms.append(vm)
 
             # Sort by VMID only — keeps rows in a stable position during
@@ -290,6 +282,20 @@ def vm_detail_status(request, vmid):
         "transitioning": transitioning,
         "was_transitioning": bool(action) and not transitioning,
     })
+
+
+@login_required
+def vm_ip(request, vmid):
+    """HTMX endpoint: return the IP address for a single VM via guest agent."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    try:
+        api = config.get_api_client()
+        ifaces = api.get_vm_agent_interfaces(node, vmid)
+        ip = _extract_ipv4(ifaces, primary_only=True)
+        return HttpResponse(ip or "—")
+    except Exception:
+        return HttpResponse("—")
 
 
 @login_required

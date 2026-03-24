@@ -335,15 +335,6 @@ def list_lxcs(request):
                 ct["node"] = node_name
                 ct["cpu_pct"] = round((ct.get("cpu") or 0) * 100, 1)
                 ct["uptime_human"] = _uptime_human(ct.get("uptime", 0))
-                # Get IP from LXC interfaces (only for running containers)
-                ct["ip_address"] = ""
-                if ct.get("status") == "running":
-                    try:
-                        from apps.inventory.views import _extract_ipv4
-                        ifaces = api.get_lxc_interfaces(node_name, ct["vmid"])
-                        ct["ip_address"] = _extract_ipv4(ifaces, primary_only=True)
-                    except Exception:
-                        pass
                 containers.append(ct)
 
             # Sort by VMID only — keeps rows stable during state transitions
@@ -438,6 +429,21 @@ def lxc_action(request, vmid, action):
             "action": action,
         },
     )
+
+
+@login_required
+def lxc_ip(request, vmid):
+    """HTMX endpoint: return the IP address for a single LXC container."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    try:
+        api = config.get_api_client()
+        from apps.inventory.views import _extract_ipv4
+        ifaces = api.get_lxc_interfaces(node, vmid)
+        ip = _extract_ipv4(ifaces, primary_only=True)
+        return HttpResponse(ip or "—")
+    except Exception:
+        return HttpResponse("—")
 
 
 @login_required
