@@ -1,6 +1,6 @@
 # ProxMigrate
 
-**Version 1.1.2** — Build `2026-03-24.2`
+**Version 1.1.2** — Build `2026-03-24.3`
 
 > **To update an existing install:** `git pull origin main && sudo ./update.sh`
 
@@ -316,6 +316,9 @@ ProxMigrate handles template downloading, container creation, and optional auto-
 ---
 
 ## Changelog
+
+### v1.1.2 — 2026-03-24.3
+- **LXC one-liner installer** — deploy ProxMigrate on Proxmox with a single command; auto-detects storage, configurable via flags (ID, hostname, IP, storage, disk, RAM, cores, port)
 
 ### v1.1.2 — 2026-03-24.2
 - **ISO boot detection** — OVA files containing ISO boot images (e.g. Cisco 8000v) are detected, ISO uploaded to user-selected Proxmox storage, attached as CD-ROM with boot order set to CD-ROM first
