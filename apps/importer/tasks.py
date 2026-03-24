@@ -533,6 +533,23 @@ def _create_vm_and_import(job, config, remote_qcow2_path, job_id):
         except Exception as exc:
             logger.warning("ImportJob %d: failed to attach VirtIO ISO: %s", job_id, exc)
 
+    # ── OVA ISO boot image — attach as CD-ROM and update boot order ─────────
+    ova_iso_ref = (vm_config.get("_ova_iso_ref") or "").strip()
+    if ova_iso_ref:
+        try:
+            with config.get_ssh_client() as ssh:
+                ssh.run_checked([
+                    "qm", "set", str(vmid),
+                    "--ide2", f"{ova_iso_ref},media=cdrom",
+                    "--boot", f"order=ide2;{disk_bus}0",
+                ])
+            logger.info(
+                "ImportJob %d: attached OVA ISO %s as ide2, boot order: ide2;%s0",
+                job_id, ova_iso_ref, disk_bus,
+            )
+        except Exception as exc:
+            logger.warning("ImportJob %d: failed to attach OVA ISO: %s", job_id, exc)
+
     # ── 7. CLOUD-INIT ────────────────────────────────────────────────────────
     if vm_config.get("cloud_init_enabled"):
         try:
@@ -668,8 +685,8 @@ def run_import_pipeline(self, job_id):
             if ova_iso_path:
                 job.set_stage(ImportJob.STAGE_TRANSFERRING, "Transferring ISO boot image to Proxmox...")
                 iso_filename = os.path.basename(ova_iso_path)
-                # Upload to the default storage's ISO directory via temp then SSH move
-                iso_storage = config.default_storage or "local"
+                # Use user-selected ISO storage from the configure form, or fall back
+                iso_storage = job.vm_config.get("ova_iso_storage") or config.default_storage or "local"
                 # Find the ISO storage path on Proxmox
                 with config.get_ssh_client() as ssh:
                     pvesm_out, _, _ = ssh.run(["pvesm", "path", f"{iso_storage}:iso/{iso_filename}"])
@@ -780,6 +797,14 @@ def run_import_pipeline(self, job_id):
                 job.save(update_fields=["vm_config_json", "updated_at"])
                 logger.info("ImportJob %d: injected %d OVA extra disks into vm_config",
                             job_id, len(ova_extra_remote_paths))
+
+            # Inject ISO ref into vm_config for CD-ROM attachment
+            if remote_iso_ref:
+                vm_config = job.vm_config
+                vm_config["_ova_iso_ref"] = remote_iso_ref
+                job.vm_config_json = json.dumps(vm_config)
+                job.save(update_fields=["vm_config_json", "updated_at"])
+                logger.info("ImportJob %d: ISO ref injected: %s", job_id, remote_iso_ref)
 
         _check_cancelled(job)
         assigned_vmid = _create_vm_and_import(job, config, remote_qcow2_path, job_id)

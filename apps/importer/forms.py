@@ -608,6 +608,7 @@ class VMConfigForm(forms.Form):
     )
     start_after_import = forms.BooleanField(required=False)
     virtio_iso_ref = forms.CharField(required=False, max_length=500)
+    ova_iso_storage = forms.CharField(required=False, max_length=200)
 
     # --- Cloud-Init ---
     cloud_init_enabled = forms.BooleanField(required=False)
