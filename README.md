@@ -1,6 +1,6 @@
 # ProxMigrate
 
-**Version 1.1.2** — Build `2026-03-24.3`
+**Version 1.1.2** — Build `2026-03-24.4`
 
 > **To update an existing install:** `git pull origin main && sudo ./update.sh`
 
