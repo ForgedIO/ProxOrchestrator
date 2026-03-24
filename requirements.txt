@@ -13,4 +13,4 @@ Markdown==3.5.2
 cryptography==42.0.2
 pyotp==2.9.0
 qrcode==7.4.2
-Pillow==10.2.0
+Pillow==11.1.0
