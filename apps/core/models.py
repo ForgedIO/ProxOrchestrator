@@ -49,6 +49,10 @@ class MFAConfig(models.Model):
         default=False,
         help_text="Require all local and LDAP users to set up MFA.",
     )
+    allow_email_recovery = models.BooleanField(
+        default=True,
+        help_text="Allow users to receive a one-time MFA bypass code via email.",
+    )
 
     class Meta:
         verbose_name = "MFA Configuration"

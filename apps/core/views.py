@@ -437,12 +437,25 @@ def mfa_verify(request):
         else:
             error = "Invalid code. Please try again."
 
-    return render(request, "core/mfa_verify.html", {"error": error})
+    from apps.core.models import MFAConfig
+    mfa_config = MFAConfig.get_config()
+
+    return render(request, "core/mfa_verify.html", {
+        "error": error,
+        "allow_email_recovery": mfa_config.allow_email_recovery,
+    })
 
 
 def mfa_email_recovery(request):
     """Send a one-time bypass code via email during MFA challenge."""
+    from apps.core.models import MFAConfig
     from apps.emailconfig.models import EmailConfig
+
+    # Check if admin has enabled email recovery
+    mfa_config = MFAConfig.get_config()
+    if not mfa_config.allow_email_recovery:
+        messages.error(request, "Email recovery has been disabled by your administrator.")
+        return redirect("mfa_verify")
 
     user = _get_mfa_pending_user(request)
     if user is None:

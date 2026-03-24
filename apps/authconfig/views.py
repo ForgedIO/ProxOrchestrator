@@ -66,6 +66,7 @@ def auth_settings(request):
         "ldap_enabled": ldap_config.is_enabled if ldap_config else False,
         "entra_enabled": entra_config.is_enabled if entra_config else False,
         "mfa_enforced": mfa_config.enforce_mfa,
+        "mfa_email_recovery": mfa_config.allow_email_recovery,
         "active_tab": active_tab,
     })
 
@@ -138,6 +139,15 @@ def auth_settings_toggle(request, auth_type):
         state = "enforced" if config.enforce_mfa else "optional"
         logger.info("MFA %s by %s", state, request.user)
         messages.success(request, f"MFA is now {state} for all local and LDAP users.")
+        return redirect(reverse("auth_settings") + "?tab=mfa")
+    elif auth_type == "mfa_email":
+        from apps.core.models import MFAConfig
+        config = MFAConfig.get_config()
+        config.allow_email_recovery = not config.allow_email_recovery
+        config.save()
+        state = "enabled" if config.allow_email_recovery else "disabled"
+        logger.info("MFA email recovery %s by %s", state, request.user)
+        messages.success(request, f"MFA email recovery is now {state}.")
         return redirect(reverse("auth_settings") + "?tab=mfa")
     else:
         return HttpResponse("Unknown auth type", status=400)

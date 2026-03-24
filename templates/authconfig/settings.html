@@ -111,12 +111,40 @@
           </form>
         </div>
 
+        <div style="display:flex;align-items:center;justify-content:space-between;background:#f5f7fa;border-radius:8px;padding:1.25rem 1.5rem;margin-top:1.25rem;">
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;color:#1a1a2e;">
+              Email Recovery
+            </div>
+            <p style="font-size:0.82rem;color:#7a7a7a;margin-top:0.3rem;">
+              {% if mfa_email_recovery %}
+                Users can receive a one-time bypass code via email if they lose access to their authenticator.
+                Requires email to be configured (SMTP or Graph API).
+              {% else %}
+                Email recovery is <strong>disabled</strong>. Users can only recover access using their recovery codes or by contacting an administrator.
+              {% endif %}
+            </p>
+          </div>
+          <form method="post" action="{% url 'auth_settings_toggle' 'mfa_email' %}" style="margin-left:1.5rem;flex-shrink:0;">
+            {% csrf_token %}
+            <button type="submit" class="button {% if mfa_email_recovery %}is-info is-light{% else %}is-light{% endif %}"
+                    style="font-weight:600;">
+              {% if mfa_email_recovery %}
+                <span class="icon"><i class="fas fa-envelope"></i></span>
+                <span>Enabled</span>
+              {% else %}
+                <span class="icon"><i class="fas fa-envelope"></i></span>
+                <span>Disabled</span>
+              {% endif %}
+            </button>
+          </form>
+        </div>
+
         <div style="margin-top:1.5rem;">
           <div class="info-box" style="margin-bottom:1rem;">
             <div class="info-box-icon"><i class="fas fa-info-circle"></i></div>
             <div style="font-size:0.82rem;">
-              <strong>Recovery options:</strong> Users get 8 one-time recovery codes at setup.
-              If email is configured, they can also receive a bypass code via email.
+              <strong>Recovery options:</strong> Users always get 8 one-time recovery codes at setup.
               Admins can reset a user's MFA from the User Management page.
             </div>
           </div>

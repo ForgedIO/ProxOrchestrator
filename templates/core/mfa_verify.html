@@ -77,9 +77,11 @@
       </form>
 
       <div style="text-align:center;margin-top:1.5rem;display:flex;flex-direction:column;gap:0.5rem;">
-        <a href="{% url 'mfa_email_recovery' %}" style="color:#3273dc;font-size:0.82rem;">
-          <i class="fas fa-envelope" style="margin-right:0.3rem;"></i> Email me a recovery code
-        </a>
+        {% if allow_email_recovery %}
+          <a href="{% url 'mfa_email_recovery' %}" style="color:#3273dc;font-size:0.82rem;">
+            <i class="fas fa-envelope" style="margin-right:0.3rem;"></i> Email me a recovery code
+          </a>
+        {% endif %}
         <a href="{% url 'login' %}" style="color:#7a7a7a;font-size:0.78rem;">
           <i class="fas fa-arrow-left" style="margin-right:0.3rem;"></i> Back to Sign In
         </a>
