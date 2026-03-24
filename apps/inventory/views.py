@@ -14,8 +14,12 @@ logger = logging.getLogger(__name__)
 VALID_ACTIONS = {"start", "stop", "shutdown", "reboot"}
 
 
-def _extract_ipv4(interfaces):
-    """Extract non-loopback IPv4 addresses from guest agent or LXC interface data."""
+def _extract_ipv4(interfaces, primary_only=False):
+    """Extract non-loopback IPv4 addresses from guest agent or LXC interface data.
+
+    If primary_only=True, return just the first IP (for inventory tables).
+    Otherwise return all IPs comma-separated (for detail views).
+    """
     ips = []
     for iface in interfaces or []:
         if iface.get("name") == "lo":
@@ -23,7 +27,13 @@ def _extract_ipv4(interfaces):
         for addr in iface.get("ip-addresses", []):
             ip_type = addr.get("ip-address-type", "")
             if ip_type in ("ipv4", "inet"):
-                ips.append(addr.get("ip-address", ""))
+                ip = addr.get("ip-address", "")
+                if ip:
+                    if primary_only:
+                        return ip
+                    ips.append(ip)
+    if primary_only:
+        return ""
     return ", ".join(ips) if ips else ""
 
 
@@ -67,7 +77,7 @@ def list_vms(request):
                 if vm.get("status") == "running":
                     try:
                         ifaces = api.get_vm_agent_interfaces(node_name, vm["vmid"])
-                        vm["ip_address"] = _extract_ipv4(ifaces)
+                        vm["ip_address"] = _extract_ipv4(ifaces, primary_only=True)
                     except Exception:
                         pass  # Guest agent not installed or not responding
                 vms.append(vm)

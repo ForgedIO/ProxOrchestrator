@@ -341,7 +341,7 @@ def list_lxcs(request):
                     try:
                         from apps.inventory.views import _extract_ipv4
                         ifaces = api.get_lxc_interfaces(node_name, ct["vmid"])
-                        ct["ip_address"] = _extract_ipv4(ifaces)
+                        ct["ip_address"] = _extract_ipv4(ifaces, primary_only=True)
                     except Exception:
                         pass
                 containers.append(ct)
