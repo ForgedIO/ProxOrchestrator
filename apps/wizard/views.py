@@ -10,6 +10,7 @@ from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
+from django.views.decorators.http import require_POST
 
 from apps.proxmox.api import ProxmoxAPI
 from apps.proxmox.api import ProxmoxAPIError
@@ -435,6 +436,75 @@ def step5_browse(request):
         "parent": parent,
         "dirs": dirs,
         "error": error,
+    })
+
+
+@login_required
+@require_POST
+def local_mkdir(request):
+    """Create a directory on the local server. Returns JSON."""
+    import re as _re
+
+    path = request.POST.get("path", "").strip()
+    if not path or not path.startswith("/"):
+        return JsonResponse({"ok": False, "error": "Invalid path."})
+
+    # Sanitise
+    path = _re.sub(r"[^a-zA-Z0-9/_.\- ]", "", path)
+    if not path:
+        return JsonResponse({"ok": False, "error": "Invalid path."})
+
+    try:
+        os.makedirs(path, exist_ok=True)
+        return JsonResponse({"ok": True, "path": path})
+    except PermissionError:
+        return JsonResponse({"ok": False, "error": f"Permission denied: {path}"})
+    except OSError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)})
+
+
+@login_required
+def local_browse(request):
+    """HTMX endpoint: list directories on the local server for the dir browser."""
+    import re as _re
+
+    path = request.GET.get("path", "/").strip() or "/"
+    field = request.GET.get("field", "upload_temp_dir")
+
+    # Sanitise: must be an absolute path, no shell metacharacters
+    if not path.startswith("/"):
+        path = "/"
+    path = _re.sub(r"[^a-zA-Z0-9/_.\- ]", "", path).rstrip("/") or "/"
+
+    parent = os.path.dirname(path) if path != "/" else "/"
+    dirs = []
+    error = None
+    free_bytes = None
+
+    try:
+        entries = sorted(os.listdir(path))
+        dirs = [e for e in entries if os.path.isdir(os.path.join(path, e)) and not e.startswith(".")]
+    except PermissionError:
+        error = f"Permission denied: {path}"
+    except FileNotFoundError:
+        error = f"Directory not found: {path}"
+    except OSError as exc:
+        error = str(exc)
+
+    # Show free space for current directory
+    try:
+        stat = os.statvfs(path)
+        free_bytes = stat.f_bavail * stat.f_frsize
+    except OSError:
+        pass
+
+    return render(request, "wizard/local_browse.html", {
+        "path": path,
+        "parent": parent,
+        "dirs": dirs,
+        "error": error,
+        "field": field,
+        "free_bytes": free_bytes,
     })
 
 

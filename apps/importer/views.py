@@ -2,12 +2,14 @@ import json
 import logging
 import os
 import shutil
+import tempfile
 import uuid
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
@@ -31,11 +33,60 @@ logger = logging.getLogger(__name__)
 UPLOAD_ROOT = getattr(settings, "UPLOAD_ROOT", "/opt/proxmigrate/uploads")
 
 
+def _sync_upload_temp_dir():
+    """Read upload_temp_dir from DB and apply it to this worker's settings.
+
+    Gunicorn prefork workers each have their own copy of settings.
+    When the user changes upload_temp_dir via the UI, only the worker
+    that handled the save gets the update.  This ensures every worker
+    picks up the current value before handling an upload.
+    """
+    try:
+        config = ProxmoxConfig.objects.first()
+        if config and config.upload_temp_dir:
+            path = config.upload_temp_dir
+            os.makedirs(path, exist_ok=True)
+            settings.FILE_UPLOAD_TEMP_DIR = path
+        else:
+            settings.FILE_UPLOAD_TEMP_DIR = None
+    except Exception:
+        pass
+
+
+@login_required
+def check_upload_space(request):
+    """Return JSON with free space in the upload temp directory."""
+    _sync_upload_temp_dir()
+    temp_dir = getattr(settings, "FILE_UPLOAD_TEMP_DIR", None) or tempfile.gettempdir()
+    try:
+        stat = os.statvfs(temp_dir)
+        free_bytes = stat.f_bavail * stat.f_frsize
+    except OSError:
+        free_bytes = 0
+    return JsonResponse({
+        "free_bytes": free_bytes,
+        "temp_dir": temp_dir,
+    })
+
+
 @login_required
 def upload(request):
     """Upload a disk image and create an ImportJob."""
+    _sync_upload_temp_dir()
     if request.method == "POST":
-        form = UploadForm(request.POST, request.FILES)
+        try:
+            form = UploadForm(request.POST, request.FILES)
+        except OSError as exc:
+            logger.error("Upload failed (OS error during multipart parse): %s", exc)
+            return JsonResponse({
+                "error": "disk_full",
+                "message": (
+                    "Upload failed — the server ran out of temporary disk space. "
+                    "Go to Settings → Storage and configure a temp directory on a "
+                    "disk with enough free space for your upload."
+                ),
+            }, status=507)
+
         if form.is_valid():
             uploaded_file = form.cleaned_data["disk_image"]
             filename = uploaded_file.name
@@ -59,9 +110,21 @@ def upload(request):
             os.makedirs(dest_dir, exist_ok=True)
             dest_path = os.path.join(dest_dir, filename)
 
-            with open(dest_path, "wb") as out:
-                for chunk in uploaded_file.chunks():
-                    out.write(chunk)
+            try:
+                with open(dest_path, "wb") as out:
+                    for chunk in uploaded_file.chunks():
+                        out.write(chunk)
+            except OSError as exc:
+                logger.error("Upload failed (OS error writing file): %s", exc)
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                return JsonResponse({
+                    "error": "disk_full",
+                    "message": (
+                        "Upload failed — the server ran out of disk space while "
+                        "saving the file. Check available space on the uploads "
+                        "directory and the temp directory in Settings → Storage."
+                    ),
+                }, status=507)
 
             logger.info("Saved upload %s to %s", filename, dest_path)
 
