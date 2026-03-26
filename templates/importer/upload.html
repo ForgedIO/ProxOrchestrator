@@ -304,7 +304,7 @@
             'Not enough temporary disk space to receive this upload. ' +
             'Your file is <strong>' + need + '</strong> but only <strong>' + have +
             '</strong> is available in <code>' + dir + '</code>.<br><br>' +
-            'Go to <strong><a href="/wizard/settings/">Settings → Storage</a></strong> and ' +
+            'Go to <strong><a href="/settings/proxmox/">Settings → Storage</a></strong> and ' +
             'set the <em>Upload temp directory</em> to a path on a disk with enough free space.'
           );
           return;
@@ -358,7 +358,7 @@
       showUploadError(
         'Upload failed — the connection to the server was lost. ' +
         'For large files this often means the server ran out of temporary disk space. ' +
-        'Check <strong><a href="/wizard/settings/">Settings → Storage</a></strong> to ensure ' +
+        'Check <strong><a href="/settings/proxmox/">Settings → Storage</a></strong> to ensure ' +
         'the upload temp directory has enough free space.'
       );
     });
