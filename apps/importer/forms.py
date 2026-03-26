@@ -274,7 +274,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 32768, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
                 {"key": "cisco-ise-small-3615", "label": "Small — SNS 3615 (16 vCPU / 32 GB)", "config": {
@@ -282,7 +282,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 32768, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
                 {"key": "cisco-ise-medium-3655", "label": "Medium — SNS 3655 (24 vCPU / 96 GB)", "config": {
@@ -290,7 +290,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 98304, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
                 {"key": "cisco-ise-large-3695", "label": "Large — SNS 3695 (24 vCPU / 256 GB)", "config": {
@@ -298,7 +298,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 262144, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
                 {"key": "cisco-ise-small-3715", "label": "Small — SNS 3715 (24 vCPU / 32 GB)", "config": {
@@ -306,7 +306,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 32768, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
                 {"key": "cisco-ise-medium-3755", "label": "Medium — SNS 3755 (40 vCPU / 96 GB)", "config": {
@@ -314,7 +314,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 98304, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
                 {"key": "cisco-ise-large-3795", "label": "Large — SNS 3795 (40 vCPU / 256 GB)", "config": {
@@ -322,7 +322,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 262144, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
                 {"key": "cisco-ise-small-3815", "label": "Small — SNS 3815 (32 vCPU / 64 GB)", "config": {
@@ -330,7 +330,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 65536, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
                 {"key": "cisco-ise-medium-3855", "label": "Medium — SNS 3855 (48 vCPU / 128 GB)", "config": {
@@ -338,7 +338,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 131072, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
                 {"key": "cisco-ise-large-3895", "label": "Large — SNS 3895 (48 vCPU / 256 GB)", "config": {
@@ -346,7 +346,7 @@ HARDWARE_PRESETS = {
                     "memory_mb": 262144, "net_model": "virtio", "disk_bus": "virtio",
                     "os_type": "l26", "machine": "pc", "bios": "seabios",
                     "vga_type": "std", "disk_cache": "none",
-                    "disk_iothread": False, "ballooning": False, "qemu_agent": False,
+                    "disk_iothread": True, "ballooning": False, "qemu_agent": False,
                     "serial_port": True,
                 }},
             ],

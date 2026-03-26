@@ -377,7 +377,7 @@ def _create_vm_and_import(job, config, remote_qcow2_path, job_id):
     disk_cache = vm_config.get("disk_cache", "none")
 
     disk_options = f"{disk_ref},cache={disk_cache}"
-    if vm_config.get("disk_iothread") and disk_bus == "scsi":
+    if vm_config.get("disk_iothread") and disk_bus in ("scsi", "virtio"):
         disk_options += ",iothread=1"
     if vm_config.get("disk_discard"):
         disk_options += ",discard=on"
