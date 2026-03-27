@@ -4,6 +4,7 @@ import time
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
@@ -300,6 +301,150 @@ def vm_delete(request, vmid):
         logger.error("vm_delete vmid=%d: %s", vmid, exc)
         messages.error(request, f"Failed to delete VM {vmid}: {exc.message}")
         return redirect("vm_detail", vmid=vmid)
+
+
+@login_required
+def vm_clone(request, vmid):
+    """Show clone options for a VM, or process the clone form."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    vm_name = str(vmid)
+    vm_status = "unknown"
+    error = None
+
+    try:
+        api = config.get_api_client()
+        status = api.get_vm_status(node, vmid)
+        vm_name = status.get("name", str(vmid))
+        vm_status = status.get("status", "unknown")
+    except ProxmoxAPIError as exc:
+        error = f"Could not fetch VM info: {exc.message}"
+
+    if request.method == "POST" and not error:
+        name = request.POST.get("name", "").strip()
+        if not name:
+            name = f"{vm_name}-clone"
+
+        vmid_raw = request.POST.get("vmid", "").strip()
+        target_storage = request.POST.get("target_storage", "").strip()
+        clone_mode = request.POST.get("clone_mode", "full")
+
+        try:
+            api = config.get_api_client()
+            new_vmid = int(vmid_raw) if vmid_raw else api.get_next_vmid()
+
+            clone_kwargs = {
+                "name": name,
+                "full": 1 if clone_mode == "full" else 0,
+            }
+            if target_storage:
+                clone_kwargs["storage"] = target_storage
+
+            upid = api.clone_vm(node, vmid, new_vmid, **clone_kwargs)
+
+            # Store clone info in session for the progress page
+            request.session["clone_task"] = {
+                "upid": upid if isinstance(upid, str) else "",
+                "source_vmid": vmid,
+                "source_name": vm_name,
+                "new_vmid": new_vmid,
+                "new_name": name,
+                "node": node,
+            }
+
+            return redirect("vm_clone_progress", vmid=vmid)
+
+        except ProxmoxAPIError as exc:
+            error = f"Clone failed: {exc.message}"
+            logger.error("vm_clone vmid=%d: %s", vmid, exc)
+
+    # GET: render clone options form
+    nodes = []
+    storage_pools = []
+    suggested_vmid = ""
+
+    try:
+        api = config.get_api_client()
+        nodes = [n.get("node") for n in api.get_nodes() if n.get("node")]
+        all_storage = api.get_storage(node)
+        storage_pools = [
+            s for s in all_storage
+            if "images" in (s.get("content", "") or "")
+        ]
+        suggested_vmid = api.get_next_vmid()
+    except ProxmoxAPIError as exc:
+        if not error:
+            error = f"Could not load Proxmox data: {exc.message}"
+
+    return render(request, "vmmanager/clone_options.html", {
+        "vmid": vmid,
+        "vm_name": vm_name,
+        "vm_status": vm_status,
+        "nodes": nodes,
+        "storage_pools": storage_pools,
+        "suggested_vmid": suggested_vmid,
+        "default_node": node,
+        "error": error,
+        "help_slug": "vm-clone",
+    })
+
+
+@login_required
+def vm_clone_progress(request, vmid):
+    """Display clone progress by polling the Proxmox task."""
+    clone_task = request.session.get("clone_task", {})
+
+    if not clone_task or clone_task.get("source_vmid") != vmid:
+        messages.error(request, "No active clone task found.")
+        return redirect("vm_detail", vmid=vmid)
+
+    return render(request, "vmmanager/clone_progress.html", {
+        "vmid": vmid,
+        "clone_task": clone_task,
+        "help_slug": "vm-clone",
+    })
+
+
+@login_required
+def vm_clone_status(request, vmid):
+    """HTMX polling endpoint for clone task progress."""
+    clone_task = request.session.get("clone_task", {})
+    upid = clone_task.get("upid", "")
+    node = clone_task.get("node", "")
+    new_vmid = clone_task.get("new_vmid")
+    new_name = clone_task.get("new_name", "")
+
+    if not upid or not node:
+        return JsonResponse({"status": "error", "message": "No active clone task."})
+
+    try:
+        config = ProxmoxConfig.get_config()
+        api = config.get_api_client()
+        task = api.get_task_status(node, upid)
+    except ProxmoxAPIError as exc:
+        return JsonResponse({"status": "error", "message": exc.message})
+
+    task_status = task.get("status", "unknown")
+    exit_status = task.get("exitstatus", "")
+
+    if task_status == "stopped":
+        # Task finished — clean up session
+        if "clone_task" in request.session:
+            del request.session["clone_task"]
+
+        if exit_status == "OK":
+            return JsonResponse({
+                "status": "complete",
+                "new_vmid": new_vmid,
+                "new_name": new_name,
+            })
+        else:
+            return JsonResponse({
+                "status": "error",
+                "message": exit_status or "Clone task failed.",
+            })
+
+    return JsonResponse({"status": "running"})
 
 
 def _wait_for_task(api, node, upid, timeout=30, interval=2):

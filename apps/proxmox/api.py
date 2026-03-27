@@ -220,6 +220,19 @@ class ProxmoxAPI:
         """
         return self._get(f"/nodes/{node}/tasks/{upid}/status")
 
+    def clone_vm(self, node, vmid, newid, **kwargs):
+        """Clone a VM. Returns task UPID string.
+
+        Required: node, vmid (source), newid (target VMID).
+        Optional kwargs: name, description, target (node), storage, pool,
+                         full (1 for full clone, 0 for linked), snapname.
+        """
+        data = {"newid": newid}
+        for key in ("name", "description", "target", "storage", "pool", "full", "snapname"):
+            if key in kwargs and kwargs[key] is not None:
+                data[key] = kwargs[key]
+        return self._post(f"/nodes/{node}/qemu/{vmid}/clone", data, timeout=300)
+
     def check_vmid_available(self, node, vmid):
         """Return True if the given VMID is not currently in use on the node."""
         try:
