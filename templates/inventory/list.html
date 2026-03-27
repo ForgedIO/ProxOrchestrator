@@ -281,7 +281,7 @@
     </section>
     <footer class="modal-card-foot" style="justify-content:flex-end;gap:0.75rem;">
       <button class="button is-light" onclick="closeDeleteModal()">Cancel</button>
-      <form id="delete-vm-form" method="post" action="" style="margin:0;">
+      <form id="delete-vm-form" method="post" action="" style="margin:0;" onsubmit="startDeleteSpinner()">
         <input type="hidden" name="csrfmiddlewaretoken" value="">
         <button type="submit" id="delete-confirm-btn" class="button is-danger" disabled>
           <span class="icon is-small"><i class="fas fa-trash-alt"></i></span>
@@ -398,5 +398,23 @@
   document.addEventListener('keydown', function(evt) {
     if (evt.key === 'Escape') closeDeleteModal();
   });
+
+  // Show spinner on delete form submit
+  function startDeleteSpinner() {
+    var btn = document.getElementById('delete-confirm-btn');
+    btn.disabled = true;
+    btn.classList.add('is-loading');
+    var body = document.querySelector('#delete-vm-modal .modal-card-body');
+    if (body) {
+      body.innerHTML =
+        '<div style="text-align:center;padding:2rem;">' +
+          '<span class="spinner" style="width:2rem;height:2rem;border-width:3px;display:inline-block;margin-bottom:1rem;"></span>' +
+          '<p style="font-weight:600;font-size:1rem;">Deleting VM…</p>' +
+          '<p style="color:var(--text-muted, #7a7a7a);font-size:0.85rem;">Waiting for Proxmox to remove disks and configuration.</p>' +
+        '</div>';
+    }
+    var cancelBtn = document.querySelector('#delete-vm-modal .modal-card-foot .button.is-light');
+    if (cancelBtn) cancelBtn.disabled = true;
+  }
 </script>
 {% endblock %}
