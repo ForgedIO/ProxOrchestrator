@@ -194,6 +194,24 @@ class ProxmoxAPI:
         """Thaw all guest filesystems via QEMU guest agent."""
         return self._post(f"/nodes/{node}/qemu/{vmid}/agent/fsfreeze-thaw")
 
+    def delete_vm(self, node, vmid, purge=True, destroy_unreferenced=True):
+        """Delete a VM and its disks. Returns task UPID string.
+
+        purge: remove from HA and replication configs.
+        destroy_unreferenced: destroy unreferenced disks owned by the VM.
+        VM must be stopped first.
+        """
+        params = []
+        if purge:
+            params.append("purge=1")
+        if destroy_unreferenced:
+            params.append("destroy-unreferenced-disks=1")
+        qs = "&".join(params)
+        path = f"/nodes/{node}/qemu/{vmid}"
+        if qs:
+            path = f"{path}?{qs}"
+        return self._delete(path, timeout=60)
+
     def check_vmid_available(self, node, vmid):
         """Return True if the given VMID is not currently in use on the node."""
         try:

@@ -1,8 +1,11 @@
 import logging
 import re
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect
 from django.shortcuts import render
+from django.views.decorators.http import require_POST
 
 from apps.proxmox.api import ProxmoxAPIError
 from apps.wizard.models import ProxmoxConfig
@@ -252,3 +255,28 @@ def vm_detail(request, vmid):
             "help_slug": "vm-detail",
         },
     )
+
+
+@login_required
+@require_POST
+def vm_delete(request, vmid):
+    """Delete a VM. The VM must be stopped first."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+
+    try:
+        api = config.get_api_client()
+        status = api.get_vm_status(node, vmid)
+        vm_name = status.get("name", str(vmid))
+
+        if status.get("status") != "stopped":
+            messages.error(request, f"VM {vm_name} ({vmid}) must be stopped before it can be deleted.")
+            return redirect("vm_detail", vmid=vmid)
+
+        api.delete_vm(node, vmid)
+        messages.success(request, f"VM {vm_name} ({vmid}) has been deleted.")
+        return redirect("inventory")
+    except ProxmoxAPIError as exc:
+        logger.error("vm_delete vmid=%d: %s", vmid, exc)
+        messages.error(request, f"Failed to delete VM {vmid}: {exc.message}")
+        return redirect("vm_detail", vmid=vmid)
