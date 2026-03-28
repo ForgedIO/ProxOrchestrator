@@ -13,6 +13,7 @@ urlpatterns = [
     path("<int:vmid>/disks/", views.vm_disks, name="vm_disks"),
     path("<int:vmid>/disks/add/", views.vm_disk_add, name="vm_disk_add"),
     path("<int:vmid>/disks/resize/", views.vm_disk_resize, name="vm_disk_resize"),
+    path("<int:vmid>/disks/attach/", views.vm_disk_attach, name="vm_disk_attach"),
     path("<int:vmid>/disks/detach/", views.vm_disk_detach, name="vm_disk_detach"),
     path("<int:vmid>/disks/delete/", views.vm_disk_delete, name="vm_disk_delete"),
     path("<int:vmid>/networks/", views.vm_networks, name="vm_networks"),

@@ -36,7 +36,13 @@
         <td style="font-size:0.78rem;color:var(--text-muted, #7a7a7a);">{{ disk.options|default:"—" }}</td>
         <td style="text-align:right;padding-right:1.5rem;white-space:nowrap;">
           {% if disk.is_unused %}
-            {# Unused/detached disk: offer delete (permanent) #}
+            {# Unused/detached disk: offer attach (with options) and delete #}
+            <button class="button is-small is-success is-light" style="font-weight:600;"
+                    onclick="openAttachModal('{{ disk.interface }}', '{{ disk.volume }}')"
+                    title="Attach disk with options">
+              <span class="icon is-small"><i class="fas fa-plug"></i></span>
+              <span>Attach</span>
+            </button>
             <button class="button is-small is-danger is-light" style="font-weight:600;"
                     hx-post="{% url 'vm_disk_delete' vmid %}"
                     hx-target="#disk-table"
@@ -187,6 +193,85 @@
     </div>
   </div>
 
+  {# -- Attach unused disk modal -- #}
+  <div class="modal" id="attach-disk-modal">
+    <div class="modal-background" onclick="closeAttachModal()"></div>
+    <div class="modal-card" style="max-width:500px;border-radius:12px;">
+      <header class="modal-card-head" style="background:var(--success-color, #48c78e);border-radius:12px 12px 0 0;">
+        <p class="modal-card-title" style="color:#fff;font-size:1rem;font-weight:600;">
+          <i class="fas fa-plug"></i>&nbsp; Attach Disk
+        </p>
+        <button class="delete" onclick="closeAttachModal()"></button>
+      </header>
+      <form method="post" action="{% url 'vm_disk_attach' vmid %}"
+            hx-post="{% url 'vm_disk_attach' vmid %}"
+            hx-target="#disk-table"
+            hx-swap="outerHTML"
+            hx-on::before-request="document.getElementById('attach-submit-btn').classList.add('is-loading');document.getElementById('attach-submit-btn').disabled=true;">
+        {% csrf_token %}
+        <input type="hidden" name="disk" id="attach-disk-name" value="">
+        <section class="modal-card-body">
+          <p style="margin-bottom:1rem;font-size:0.9rem;">
+            Attach <strong id="attach-disk-volume"></strong> to this VM.
+          </p>
+
+          <div class="columns" style="margin-bottom:0;">
+            <div class="column">
+              <div class="field">
+                <label class="label" style="font-size:0.85rem;">Bus Type</label>
+                <div class="control">
+                  <div class="select is-fullwidth">
+                    <select name="bus" id="attach-disk-bus">
+                      {% for val, label in disk_bus_choices %}
+                        <option value="{{ val }}"{% if val == "scsi" %} selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="column">
+              <div class="field">
+                <label class="label" style="font-size:0.85rem;">Cache</label>
+                <div class="control">
+                  <div class="select is-fullwidth">
+                    <select name="cache">
+                      {% for val, label in disk_cache_choices %}
+                        <option value="{{ val }}"{% if val == "none" %} selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-top:0.5rem;">
+            <label style="font-size:0.85rem;color:var(--text-semi, #555);display:flex;align-items:center;gap:0.3rem;cursor:pointer;">
+              <input type="checkbox" name="ssd" value="1"> SSD Emulation
+            </label>
+            <label style="font-size:0.85rem;color:var(--text-semi, #555);display:flex;align-items:center;gap:0.3rem;cursor:pointer;">
+              <input type="checkbox" name="discard" value="1"> Discard (TRIM)
+            </label>
+            <label style="font-size:0.85rem;color:var(--text-semi, #555);display:flex;align-items:center;gap:0.3rem;cursor:pointer;" id="attach-iothread-label">
+              <input type="checkbox" name="iothread" value="1"> IO Thread
+            </label>
+            <label style="font-size:0.85rem;color:var(--text-semi, #555);display:flex;align-items:center;gap:0.3rem;cursor:pointer;">
+              <input type="checkbox" name="backup" value="1" checked> Include in Backup
+            </label>
+          </div>
+        </section>
+        <footer class="modal-card-foot" style="justify-content:flex-end;gap:0.75rem;">
+          <button type="button" class="button is-light" onclick="closeAttachModal()">Cancel</button>
+          <button type="submit" class="button is-success" style="font-weight:600;" id="attach-submit-btn">
+            <span class="icon is-small"><i class="fas fa-plug"></i></span>
+            <span>Attach Disk</span>
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -203,23 +288,38 @@
   }
 
   document.addEventListener('keydown', function(evt) {
-    if (evt.key === 'Escape') closeResizeModal();
+    if (evt.key === 'Escape') { closeResizeModal(); closeAttachModal(); }
   });
 
+  // Attach modal
+  function openAttachModal(disk, volume) {
+    document.getElementById('attach-disk-name').value = disk;
+    document.getElementById('attach-disk-volume').textContent = volume || disk;
+    document.getElementById('attach-submit-btn').disabled = false;
+    document.getElementById('attach-submit-btn').classList.remove('is-loading');
+    document.getElementById('attach-disk-modal').classList.add('is-active');
+  }
+
+  function closeAttachModal() {
+    document.getElementById('attach-disk-modal').classList.remove('is-active');
+  }
+
   // Disable IO Thread checkbox for bus types that don't support it
-  (function() {
-    var busSelect = document.getElementById('add-disk-bus');
-    var ioLabel = document.getElementById('iothread-label');
+  function setupIoThreadToggle(busSelectId, ioLabelId) {
+    var busSelect = document.getElementById(busSelectId);
+    var ioLabel = document.getElementById(ioLabelId);
     if (!busSelect || !ioLabel) return;
     var ioCb = ioLabel.querySelector('input[name=iothread]');
-    function toggleIoThread() {
-      var bus = busSelect.value;
-      var supported = (bus === 'scsi' || bus === 'virtio');
+    function toggle() {
+      var supported = (busSelect.value === 'scsi' || busSelect.value === 'virtio');
       ioCb.disabled = !supported;
       ioLabel.style.opacity = supported ? '1' : '0.4';
       if (!supported) ioCb.checked = false;
     }
-    busSelect.addEventListener('change', toggleIoThread);
-    toggleIoThread();
-  })();
+    busSelect.addEventListener('change', toggle);
+    toggle();
+  }
+
+  setupIoThreadToggle('add-disk-bus', 'iothread-label');
+  setupIoThreadToggle('attach-disk-bus', 'attach-iothread-label');
 </script>

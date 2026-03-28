@@ -620,6 +620,63 @@ def vm_disk_resize(request, vmid):
 
 @login_required
 @require_POST
+def vm_disk_attach(request, vmid):
+    """Re-attach an unused disk to the VM with new bus/options."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    unused_key = request.POST.get("disk", "").strip()
+    bus = request.POST.get("bus", "scsi").strip()
+    cache = request.POST.get("cache", "none").strip()
+    ssd = request.POST.get("ssd") == "1"
+    discard = request.POST.get("discard") == "1"
+    iothread = request.POST.get("iothread") == "1"
+    backup = request.POST.get("backup", "1") == "1"
+
+    if not unused_key or not unused_key.startswith("unused"):
+        return redirect(f"/vm/{vmid}/disks/?error=Invalid+unused+disk+reference.")
+
+    if bus not in dict(DISK_BUS_CHOICES):
+        return redirect(f"/vm/{vmid}/disks/?error=Invalid+bus+type.")
+
+    try:
+        api = config.get_api_client()
+        raw_config = api.get_vm_config(node, vmid)
+
+        # Get the volume reference from the unused entry (e.g. "local-lvm:vm-101-disk-1")
+        volume_ref = raw_config.get(unused_key, "")
+        if not volume_ref:
+            return redirect(f"/vm/{vmid}/disks/?error=Could+not+find+{unused_key}+in+config.")
+
+        slot = _find_next_disk_slot(raw_config, bus)
+        if not slot:
+            return redirect(f"/vm/{vmid}/disks/?error=No+available+{bus}+slots.")
+
+        # Build disk spec with options
+        disk_spec = volume_ref
+        if cache:
+            disk_spec += f",cache={cache}"
+        if iothread and bus in ("scsi", "virtio"):
+            disk_spec += ",iothread=1"
+        if discard:
+            disk_spec += ",discard=on"
+        if ssd:
+            disk_spec += ",ssd=1"
+        if not backup:
+            disk_spec += ",backup=0"
+
+        # Set the new slot and delete the unused entry in one call
+        api.update_vm_config(node, vmid, **{slot: disk_spec, "delete": unused_key})
+        logger.info("vm_disk_attach vmid=%d: attached %s as %s = %s", vmid, unused_key, slot, disk_spec)
+        time.sleep(1)
+    except ProxmoxAPIError as exc:
+        logger.error("vm_disk_attach vmid=%d %s: %s", vmid, unused_key, exc)
+        return redirect(f"/vm/{vmid}/disks/?error=Failed+to+attach+disk:+{exc.message}")
+
+    return redirect(f"/vm/{vmid}/disks/?success=Disk+attached+as+{slot}.")
+
+
+@login_required
+@require_POST
 def vm_disk_detach(request, vmid):
     """Detach a disk from a VM (moves to unused state, keeps volume on storage)."""
     config = ProxmoxConfig.get_config()
