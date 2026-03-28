@@ -882,7 +882,9 @@ def vm_cdrom_set(request, vmid):
             api.update_vm_config(node, vmid, **{interface: "none,media=cdrom"})
             logger.info("vm_cdrom_set vmid=%d: ejected %s", vmid, interface)
 
-        elif action == "mount" and volid:
+        elif action == "mount":
+            if not volid:
+                return redirect(f"/vm/{vmid}/disks/?error=No+ISO+selected.")
             if not interface:
                 # Auto-detect next available CD-ROM slot
                 raw_config = api.get_vm_config(node, vmid)
