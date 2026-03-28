@@ -589,7 +589,7 @@ def vm_update_settings(request, vmid):
 
         # Check if VM is running — changes may need restart
         status = api.get_vm_status(node, vmid)
-        if status.get("status") == "running" and section in ("cpu", "memory", "firmware"):
+        if status.get("status") == "running" and section in ("cpu", "memory"):
             messages.warning(request, f"{section.title()} settings updated. A restart is required for changes to take effect.")
         else:
             messages.success(request, f"{section.title()} settings updated.")
