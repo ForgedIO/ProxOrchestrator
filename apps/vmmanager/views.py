@@ -79,6 +79,11 @@ def _parse_disk(interface, raw_value):
     is_cdrom = "media=cdrom" in raw_value
     is_empty_cdrom = is_cdrom and (location == "none" or not volume)
 
+    # Extract ISO filename from volume path (e.g. "iso/ubuntu-22.04.iso" → "ubuntu-22.04.iso")
+    iso_name = ""
+    if is_cdrom and volume:
+        iso_name = volume.split("/")[-1] if "/" in volume else volume
+
     return {
         "interface": interface,
         "storage": storage,
@@ -89,6 +94,7 @@ def _parse_disk(interface, raw_value):
         "is_unused": interface.startswith("unused"),
         "is_cdrom": is_cdrom,
         "is_empty_cdrom": is_empty_cdrom,
+        "iso_name": iso_name,
     }
 
 

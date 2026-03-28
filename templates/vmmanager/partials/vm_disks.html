@@ -28,9 +28,23 @@
     </thead>
     <tbody>
       {% for disk in disks %}
-      <tr>
+      <tr{% if disk.is_cdrom and disk.is_empty_cdrom %} style="opacity:0.6;"{% endif %}>
         <td style="font-family:monospace;font-size:0.82rem;padding-left:1.5rem;font-weight:600;">{{ disk.interface }}</td>
-        <td>{{ disk.storage }}</td>
+        <td>
+          {% if disk.is_cdrom %}
+            {% if disk.iso_name %}
+              <span style="font-size:0.82rem;" title="{{ disk.storage }}:{{ disk.volume }}">
+                <i class="fas fa-compact-disc" style="color:var(--info-color, #3273dc);margin-right:0.3rem;font-size:0.75rem;"></i>{{ disk.iso_name }}
+              </span>
+            {% elif disk.is_empty_cdrom %}
+              <span style="color:var(--text-muted, #7a7a7a);font-style:italic;">Empty</span>
+            {% else %}
+              {{ disk.storage }}
+            {% endif %}
+          {% else %}
+            {{ disk.storage }}
+          {% endif %}
+        </td>
         <td><strong>{{ disk.size }}</strong></td>
         <td><span class="format-badge">{{ disk.format|upper }}</span></td>
         <td style="font-size:0.78rem;color:var(--text-muted, #7a7a7a);">{{ disk.options|default:"—" }}</td>
