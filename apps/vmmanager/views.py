@@ -664,8 +664,8 @@ def vm_disk_attach(request, vmid):
         if not backup:
             disk_spec += ",backup=0"
 
-        # Set the new slot and delete the unused entry in one call
-        api.update_vm_config(node, vmid, **{slot: disk_spec, "delete": unused_key})
+        # Set the new slot — Proxmox automatically removes the unused entry
+        api.update_vm_config(node, vmid, **{slot: disk_spec})
         logger.info("vm_disk_attach vmid=%d: attached %s as %s = %s", vmid, unused_key, slot, disk_spec)
         time.sleep(1)
     except ProxmoxAPIError as exc:
