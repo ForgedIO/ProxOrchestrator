@@ -36,7 +36,7 @@
         <td style="font-size:0.78rem;color:var(--text-muted, #7a7a7a);">{{ disk.options|default:"—" }}</td>
         <td style="text-align:right;padding-right:1.5rem;white-space:nowrap;">
           {% if disk.is_cdrom %}
-            {# CD-ROM drive: mount ISO or eject #}
+            {# CD-ROM drive: mount ISO, eject, or remove drive entirely #}
             {% if disk.is_empty_cdrom %}
               <button class="button is-small is-info is-light" style="font-weight:600;"
                       onclick="openCdromModal('{{ disk.interface }}')"
@@ -61,6 +61,16 @@
                 <span>Eject</span>
               </button>
             {% endif %}
+            <button class="button is-small is-danger is-light" style="font-weight:600;"
+                    hx-post="{% url 'vm_disk_detach' vmid %}"
+                    hx-target="#disk-table"
+                    hx-swap="outerHTML"
+                    hx-vals='{"disk": "{{ disk.interface }}"}'
+                    hx-confirm="Remove CD-ROM drive {{ disk.interface }}? The drive will be removed from the VM."
+                    title="Remove CD-ROM drive">
+              <span class="icon is-small"><i class="fas fa-times"></i></span>
+              <span>Remove</span>
+            </button>
           {% elif disk.is_unused %}
             {# Unused/detached disk: offer attach (with options) and delete #}
             <button class="button is-small is-success is-light" style="font-weight:600;"
@@ -359,14 +369,12 @@
         <div style="font-size:0.8rem;font-weight:600;color:var(--text-muted, #7a7a7a);margin-bottom:0.5rem;">
           <i class="fas fa-upload" style="margin-right:0.3rem;"></i> Upload New ISO
         </div>
-        <form method="post" action="{% url 'vm_iso_upload' vmid %}" enctype="multipart/form-data"
-              id="iso-upload-form" onsubmit="startIsoUploadSpinner()">
-          {% csrf_token %}
+        <form id="iso-upload-form" onsubmit="uploadIso(event)">
           <div style="display:flex;align-items:flex-end;gap:0.5rem;flex-wrap:wrap;">
             <div style="flex:1;min-width:140px;">
               <label style="font-size:0.75rem;color:var(--text-muted, #7a7a7a);display:block;margin-bottom:0.25rem;">Storage Pool</label>
               <div class="select is-small is-fullwidth">
-                <select name="storage" required>
+                <select id="iso-upload-storage" required>
                   {% for s in iso_storages %}
                     <option value="{{ s.storage }}">{{ s.storage }}</option>
                   {% endfor %}
@@ -377,7 +385,7 @@
               <label style="font-size:0.75rem;color:var(--text-muted, #7a7a7a);display:block;margin-bottom:0.25rem;">ISO File</label>
               <div class="file is-small has-name is-fullwidth">
                 <label class="file-label" style="width:100%;">
-                  <input class="file-input" type="file" name="iso_file" accept=".iso" required
+                  <input class="file-input" type="file" id="iso-upload-file" accept=".iso" required
                          onchange="document.getElementById('iso-file-name').textContent=this.files[0]?this.files[0].name:'Choose file...'">
                   <span class="file-cta" style="padding-right:0.75rem;">
                     <span class="file-icon"><i class="fas fa-upload"></i></span>
@@ -394,17 +402,19 @@
           </div>
         </form>
         <div id="iso-upload-progress" style="display:none;margin-top:0.75rem;">
-          <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--link-color, #3273dc);">
-            <span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>
-            <span>Uploading ISO to Proxmox...</span>
+          <div style="margin-bottom:0.4rem;display:flex;justify-content:space-between;font-size:0.78rem;">
+            <span id="iso-upload-stage" style="color:var(--link-color, #3273dc);font-weight:600;">Uploading...</span>
+            <span id="iso-upload-pct" style="color:var(--text-muted, #7a7a7a);">0%</span>
           </div>
+          <progress class="progress is-small is-info" id="iso-upload-bar" value="0" max="100" style="margin-bottom:0.25rem;">0%</progress>
+          <div id="iso-upload-detail" style="font-size:0.72rem;color:var(--text-muted, #7a7a7a);"></div>
         </div>
       </section>
 
       <footer class="modal-card-foot" style="justify-content:flex-end;gap:0.75rem;">
         <button type="button" class="button is-light" onclick="closeCdromModal()">Cancel</button>
         <button type="button" class="button is-primary" style="font-weight:600;" id="cdrom-mount-btn" disabled
-                onclick="document.getElementById('cdrom-form').submit();">
+                onclick="mountIso()">
           <span class="icon is-small"><i class="fas fa-compact-disc"></i></span>
           <span>Mount ISO</span>
         </button>
@@ -512,9 +522,80 @@
     document.getElementById('cdrom-mount-btn').disabled = true;
   }
 
-  function startIsoUploadSpinner() {
+  // Mount ISO via HTMX (not regular form submit)
+  function mountIso() {
+    var btn = document.getElementById('cdrom-mount-btn');
+    btn.disabled = true;
+    btn.classList.add('is-loading');
+    var form = document.getElementById('cdrom-form');
+    htmx.ajax('POST', form.action, {source: form, target: '#disk-table', swap: 'outerHTML'});
+    closeCdromModal();
+  }
+
+  // Upload ISO with progress bar
+  function uploadIso(event) {
+    event.preventDefault();
+    var storage = document.getElementById('iso-upload-storage').value;
+    var fileInput = document.getElementById('iso-upload-file');
+    if (!storage || !fileInput.files.length) return;
+
+    var file = fileInput.files[0];
+    if (!file.name.toLowerCase().endsWith('.iso')) {
+      alert('Only .iso files are accepted.');
+      return;
+    }
+
+    // Show progress, disable controls
     document.getElementById('iso-upload-btn').disabled = true;
-    document.getElementById('iso-upload-btn').classList.add('is-loading');
     document.getElementById('iso-upload-progress').style.display = '';
+    document.getElementById('iso-upload-stage').textContent = 'Uploading to server...';
+    document.getElementById('iso-upload-pct').textContent = '0%';
+    document.getElementById('iso-upload-bar').value = 0;
+    document.getElementById('iso-upload-detail').textContent = file.name + ' (' + formatBytes(file.size) + ')';
+
+    var formData = new FormData();
+    formData.append('storage', storage);
+    formData.append('iso_file', file);
+    var csrfToken = document.cookie.match(/csrftoken=([^;]+)/);
+    if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken[1]);
+
+    var xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', function(e) {
+      if (e.lengthComputable) {
+        var pct = Math.round((e.loaded / e.total) * 90); // 0-90% for upload
+        document.getElementById('iso-upload-bar').value = pct;
+        document.getElementById('iso-upload-pct').textContent = pct + '%';
+        if (pct >= 90) {
+          document.getElementById('iso-upload-stage').textContent = 'Transferring to Proxmox...';
+        }
+      }
+    });
+
+    xhr.addEventListener('load', function() {
+      document.getElementById('iso-upload-bar').value = 100;
+      document.getElementById('iso-upload-pct').textContent = '100%';
+      document.getElementById('iso-upload-stage').textContent = 'Complete!';
+      // Refresh disk panel
+      setTimeout(function() {
+        htmx.ajax('GET', '/vm/{{ vmid }}/disks/', {target: '#disk-table', swap: 'outerHTML'});
+      }, 500);
+    });
+
+    xhr.addEventListener('error', function() {
+      document.getElementById('iso-upload-stage').textContent = 'Upload failed.';
+      document.getElementById('iso-upload-stage').style.color = 'var(--danger-color, #f14668)';
+      document.getElementById('iso-upload-btn').disabled = false;
+    });
+
+    xhr.open('POST', '/vm/{{ vmid }}/disks/iso-upload/');
+    xhr.send(formData);
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+    if (bytes < 1073741824) return (bytes/1048576).toFixed(1) + ' MB';
+    return (bytes/1073741824).toFixed(1) + ' GB';
   }
 </script>
