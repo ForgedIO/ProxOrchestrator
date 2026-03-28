@@ -414,6 +414,11 @@
               <span>Upload</span>
             </button>
           </div>
+          <div style="margin-top:0.5rem;">
+            <label style="font-size:0.8rem;color:var(--text-semi, #555);display:flex;align-items:center;gap:0.3rem;cursor:pointer;">
+              <input type="checkbox" id="iso-mount-after" checked> Mount after upload
+            </label>
+          </div>
         </form>
         <div id="iso-upload-progress" style="display:none;margin-top:0.75rem;">
           <div style="margin-bottom:0.4rem;display:flex;justify-content:space-between;font-size:0.78rem;">
@@ -584,6 +589,9 @@
     var formData = new FormData();
     formData.append('storage', storage);
     formData.append('iso_file', file);
+    if (document.getElementById('iso-mount-after').checked) {
+      formData.append('mount_after', '1');
+    }
     var csrfToken = document.cookie.match(/csrftoken=([^;]+)/);
     if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken[1]);
 

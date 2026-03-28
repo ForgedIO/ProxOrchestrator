@@ -948,8 +948,22 @@ def vm_iso_upload(request, vmid):
         # Clean up local temp file
         os.remove(temp_path)
 
-        logger.info("vm_iso_upload vmid=%d: uploaded %s to %s:%s", vmid, iso_file.name, storage, iso_dest)
-        messages.success(request, f"ISO {iso_file.name} uploaded to {storage}.")
+        remote_iso_ref = f"{storage}:iso/{iso_file.name}"
+        logger.info("vm_iso_upload vmid=%d: uploaded %s to %s", vmid, iso_file.name, remote_iso_ref)
+
+        # Auto-mount if requested
+        mount_after = request.POST.get("mount_after") == "1"
+        if mount_after:
+            raw_config = api.get_vm_config(node, vmid)
+            slot = _find_next_cdrom_slot(raw_config)
+            if slot:
+                api.update_vm_config(node, vmid, **{slot: f"{remote_iso_ref},media=cdrom"})
+                logger.info("vm_iso_upload vmid=%d: auto-mounted %s on %s", vmid, remote_iso_ref, slot)
+                messages.success(request, f"ISO {iso_file.name} uploaded and mounted on {slot}.")
+            else:
+                messages.success(request, f"ISO {iso_file.name} uploaded to {storage}. No available CD-ROM slot to auto-mount.")
+        else:
+            messages.success(request, f"ISO {iso_file.name} uploaded to {storage}.")
     except Exception as exc:
         logger.error("vm_iso_upload vmid=%d: %s", vmid, exc)
         # Clean up temp file on error
