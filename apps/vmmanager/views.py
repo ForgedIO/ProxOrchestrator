@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import time
 from datetime import datetime
@@ -687,6 +688,7 @@ def vm_disks(request, vmid):
     node = config.default_node
     disks = []
     storage_pools = []
+    iso_storages = []
     disk_error = request.GET.get("error", "")
     disk_success = request.GET.get("success", "")
 
@@ -708,6 +710,10 @@ def vm_disks(request, vmid):
             s for s in all_storage
             if "images" in (s.get("content", "") or "")
         ]
+        iso_storages = [
+            s for s in all_storage
+            if "iso" in (s.get("content", "") or "")
+        ]
     except ProxmoxAPIError as exc:
         disk_error = f"Could not load disk info: {exc.message}"
 
@@ -715,6 +721,7 @@ def vm_disks(request, vmid):
         "vmid": vmid,
         "disks": disks,
         "storage_pools": storage_pools,
+        "iso_storages": iso_storages,
         "disk_bus_choices": DISK_BUS_CHOICES,
         "disk_cache_choices": DISK_CACHE_CHOICES,
         "disk_error": disk_error,
@@ -813,23 +820,24 @@ def vm_disk_resize(request, vmid):
 
 @login_required
 def vm_iso_list(request, vmid):
-    """HTMX endpoint: return available ISOs for CD-ROM selection."""
+    """HTMX endpoint: return ISOs for a specific storage pool."""
     config = ProxmoxConfig.get_config()
     node = config.default_node
-    iso_pools = []
+    storage = request.GET.get("storage", "")
+
+    if not storage:
+        return render(request, "vmmanager/partials/vm_iso_list.html", {
+            "vmid": vmid, "isos": [], "iso_error": "No storage pool selected.",
+        })
 
     try:
         api = config.get_api_client()
-        all_storage = api.get_storage(node)
-        for s in all_storage:
-            if "iso" in (s.get("content", "") or ""):
-                isos = api.get_storage_content(node, s["storage"], "iso")
-                for iso in isos:
-                    iso["storage_name"] = s["storage"]
-                    # volid is like "local:iso/ubuntu-22.04.iso"
-                    iso["filename"] = iso.get("volid", "").split("/", 1)[-1] if "/" in iso.get("volid", "") else iso.get("volid", "")
-                iso_pools.extend(isos)
-        iso_pools.sort(key=lambda i: i.get("volid", "").lower())
+        isos = api.get_storage_content(node, storage, "iso")
+        for iso in isos:
+            iso["storage_name"] = storage
+            volid = iso.get("volid", "")
+            iso["filename"] = volid.split("/", 1)[-1] if "/" in volid else volid.split(":")[-1] if ":" in volid else volid
+        isos.sort(key=lambda i: i.get("filename", "").lower())
     except ProxmoxAPIError as exc:
         return render(request, "vmmanager/partials/vm_iso_list.html", {
             "vmid": vmid, "isos": [], "iso_error": exc.message,
@@ -837,8 +845,22 @@ def vm_iso_list(request, vmid):
 
     return render(request, "vmmanager/partials/vm_iso_list.html", {
         "vmid": vmid,
-        "isos": iso_pools,
+        "isos": isos,
     })
+
+
+def _find_next_cdrom_slot(raw_config):
+    """Find the next available CD-ROM slot (ide first, then sata)."""
+    # Prefer ide2 (standard Proxmox CD-ROM slot), then other ide, then sata
+    preferred = ["ide2", "ide0", "ide1", "ide3", "sata0", "sata1", "sata2"]
+    for slot in preferred:
+        val = raw_config.get(slot, "")
+        if not val:
+            return slot
+        # Already a CD-ROM (empty or loaded) — reuse it
+        if "media=cdrom" in val:
+            return slot
+    return None
 
 
 @login_required
@@ -848,21 +870,84 @@ def vm_cdrom_set(request, vmid):
     config = ProxmoxConfig.get_config()
     node = config.default_node
     action = request.POST.get("action", "")
-    interface = request.POST.get("interface", "ide2").strip()
+    interface = request.POST.get("interface", "").strip()
     volid = request.POST.get("volid", "").strip()
 
     try:
         api = config.get_api_client()
+
         if action == "eject":
+            if not interface:
+                return redirect(f"/vm/{vmid}/disks/?error=No+CD-ROM+interface+specified.")
             api.update_vm_config(node, vmid, **{interface: "none,media=cdrom"})
             logger.info("vm_cdrom_set vmid=%d: ejected %s", vmid, interface)
+
         elif action == "mount" and volid:
+            if not interface:
+                # Auto-detect next available CD-ROM slot
+                raw_config = api.get_vm_config(node, vmid)
+                interface = _find_next_cdrom_slot(raw_config)
+                if not interface:
+                    return redirect(f"/vm/{vmid}/disks/?error=No+available+CD-ROM+slots.")
             api.update_vm_config(node, vmid, **{interface: f"{volid},media=cdrom"})
             logger.info("vm_cdrom_set vmid=%d: mounted %s on %s", vmid, volid, interface)
+
         time.sleep(0.5)
     except ProxmoxAPIError as exc:
         logger.error("vm_cdrom_set vmid=%d: %s", vmid, exc)
         return redirect(f"/vm/{vmid}/disks/?error=CD-ROM+operation+failed:+{exc.message}")
+
+    return redirect(f"/vm/{vmid}/disks/")
+
+
+@login_required
+@require_POST
+def vm_iso_upload(request, vmid):
+    """Upload an ISO file to a Proxmox storage pool."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    storage = request.POST.get("storage", "").strip()
+    iso_file = request.FILES.get("iso_file")
+
+    if not storage or not iso_file:
+        return redirect(f"/vm/{vmid}/disks/?error=Storage+pool+and+ISO+file+are+required.")
+
+    if not iso_file.name.lower().endswith(".iso"):
+        return redirect(f"/vm/{vmid}/disks/?error=Only+.iso+files+are+accepted.")
+
+    try:
+        # Save uploaded file to temp location
+        import tempfile
+        import shlex
+
+        temp_dir = config.upload_temp_dir or "/tmp"
+        temp_path = os.path.join(temp_dir, iso_file.name)
+
+        with open(temp_path, "wb") as f:
+            for chunk in iso_file.chunks():
+                f.write(chunk)
+
+        # Determine the ISO storage path on Proxmox and transfer via SFTP
+        with config.get_ssh_client() as ssh:
+            out, _, rc = ssh.run(["pvesm", "path", f"{storage}:iso/{iso_file.name}"])
+            iso_dest = out.strip() if out.strip() else f"/var/lib/vz/template/iso/{iso_file.name}"
+            iso_dest_dir = os.path.dirname(iso_dest)
+            ssh.run(["mkdir", "-p", iso_dest_dir])
+
+        with config.get_sftp_client() as sftp:
+            sftp.put(temp_path, iso_dest)
+
+        # Clean up local temp file
+        os.remove(temp_path)
+
+        logger.info("vm_iso_upload vmid=%d: uploaded %s to %s:%s", vmid, iso_file.name, storage, iso_dest)
+        messages.success(request, f"ISO {iso_file.name} uploaded to {storage}.")
+    except Exception as exc:
+        logger.error("vm_iso_upload vmid=%d: %s", vmid, exc)
+        # Clean up temp file on error
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return redirect(f"/vm/{vmid}/disks/?error=ISO+upload+failed:+{exc}")
 
     return redirect(f"/vm/{vmid}/disks/")
 

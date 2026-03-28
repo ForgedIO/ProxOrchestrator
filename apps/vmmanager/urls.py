@@ -18,6 +18,7 @@ urlpatterns = [
     path("<int:vmid>/disks/attach/", views.vm_disk_attach, name="vm_disk_attach"),
     path("<int:vmid>/disks/isos/", views.vm_iso_list, name="vm_iso_list"),
     path("<int:vmid>/disks/cdrom/", views.vm_cdrom_set, name="vm_cdrom_set"),
+    path("<int:vmid>/disks/iso-upload/", views.vm_iso_upload, name="vm_iso_upload"),
     path("<int:vmid>/disks/detach/", views.vm_disk_detach, name="vm_disk_detach"),
     path("<int:vmid>/disks/delete/", views.vm_disk_delete, name="vm_disk_delete"),
     path("<int:vmid>/networks/", views.vm_networks, name="vm_networks"),

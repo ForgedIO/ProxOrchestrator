@@ -173,7 +173,7 @@
             <span>Add Disk</span>
           </button>
           <button type="button" class="button is-small is-info is-light" style="font-weight:600;"
-                  onclick="openCdromModal('ide2')">
+                  onclick="openCdromModal('')">
             <span class="icon is-small"><i class="fas fa-compact-disc"></i></span>
             <span>Add CD-ROM</span>
           </button>
@@ -309,10 +309,12 @@
     <div class="modal-card" style="max-width:600px;border-radius:12px;">
       <header class="modal-card-head" style="background:var(--info-color, #3273dc);border-radius:12px 12px 0 0;">
         <p class="modal-card-title" style="color:#fff;font-size:1rem;font-weight:600;">
-          <i class="fas fa-compact-disc"></i>&nbsp; Mount ISO
+          <i class="fas fa-compact-disc"></i>&nbsp; CD-ROM / ISO
         </p>
         <button class="delete" onclick="closeCdromModal()"></button>
       </header>
+
+      {# Mount form (hidden volid set by JS) #}
       <form method="post" action="{% url 'vm_cdrom_set' vmid %}"
             hx-post="{% url 'vm_cdrom_set' vmid %}"
             hx-target="#disk-table"
@@ -320,49 +322,93 @@
             id="cdrom-form">
         {% csrf_token %}
         <input type="hidden" name="action" value="mount">
-        <input type="hidden" name="interface" id="cdrom-interface" value="ide2">
+        <input type="hidden" name="interface" id="cdrom-interface" value="">
         <input type="hidden" name="volid" id="cdrom-volid" value="">
-        <section class="modal-card-body">
-          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
-            <span style="font-size:0.9rem;">Mount ISO on</span>
-            <div class="select is-small">
-              <select id="cdrom-iface-select" onchange="document.getElementById('cdrom-interface').value=this.value;">
-                <option value="ide2">ide2</option>
-                <option value="ide0">ide0</option>
-                <option value="ide1">ide1</option>
-                <option value="ide3">ide3</option>
-                <option value="sata0">sata0</option>
-                <option value="sata1">sata1</option>
-                <option value="sata2">sata2</option>
+      </form>
+
+      <section class="modal-card-body">
+        {# Step 1: Select storage pool #}
+        <div class="field">
+          <label class="label" style="font-size:0.85rem;">ISO Storage Pool</label>
+          <div class="control">
+            <div class="select is-fullwidth">
+              <select id="cdrom-storage-select" onchange="loadPoolIsos()">
+                <option value="">Select a storage pool...</option>
+                {% for s in iso_storages %}
+                  <option value="{{ s.storage }}">{{ s.storage }} ({{ s.type }}{% if s.avail %}, {{ s.avail|filesizeformat }} free{% endif %})</option>
+                {% endfor %}
               </select>
             </div>
           </div>
-          <div id="cdrom-selected" style="display:none;margin-bottom:1rem;padding:0.75rem 1rem;background:var(--bg-card, #f0fdf4);border:1px solid var(--success-color, #48c78e);border-radius:6px;">
-            <div style="display:flex;align-items:center;gap:0.5rem;">
-              <i class="fas fa-check-circle" style="color:var(--success-color, #48c78e);"></i>
-              <span id="cdrom-selected-name" style="font-family:monospace;font-size:0.82rem;font-weight:600;flex:1;"></span>
-              <button type="button" class="button is-small is-light" onclick="clearIsoSelection()">Change</button>
-            </div>
+        </div>
+
+        {# Step 2: Browse ISOs in selected pool #}
+        <div id="cdrom-browser" style="display:none;"></div>
+
+        {# Selected ISO confirmation #}
+        <div id="cdrom-selected" style="display:none;margin-top:1rem;padding:0.75rem 1rem;background:var(--bg-card, #f0fdf4);border:1px solid var(--success-color, #48c78e);border-radius:6px;">
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <i class="fas fa-check-circle" style="color:var(--success-color, #48c78e);"></i>
+            <span id="cdrom-selected-name" style="font-family:monospace;font-size:0.82rem;font-weight:600;flex:1;"></span>
+            <button type="button" class="button is-small is-light" onclick="clearIsoSelection()">Change</button>
           </div>
-          <div id="cdrom-browser">
-            <div style="padding:1rem;text-align:center;color:var(--text-muted, #7a7a7a);">
-              Click to browse available ISOs.
+        </div>
+
+        {# Upload ISO divider #}
+        <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border-color, #e8ecf0);">
+        <div style="font-size:0.8rem;font-weight:600;color:var(--text-muted, #7a7a7a);margin-bottom:0.5rem;">
+          <i class="fas fa-upload" style="margin-right:0.3rem;"></i> Upload New ISO
+        </div>
+        <form method="post" action="{% url 'vm_iso_upload' vmid %}" enctype="multipart/form-data"
+              id="iso-upload-form" onsubmit="startIsoUploadSpinner()">
+          {% csrf_token %}
+          <div style="display:flex;align-items:flex-end;gap:0.5rem;flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <label style="font-size:0.75rem;color:var(--text-muted, #7a7a7a);display:block;margin-bottom:0.25rem;">Storage Pool</label>
+              <div class="select is-small is-fullwidth">
+                <select name="storage" required>
+                  {% for s in iso_storages %}
+                    <option value="{{ s.storage }}">{{ s.storage }}</option>
+                  {% endfor %}
+                </select>
+              </div>
             </div>
-          </div>
-        </section>
-        <footer class="modal-card-foot" style="justify-content:space-between;align-items:center;">
-          <p style="font-size:0.75rem;color:var(--text-muted, #7a7a7a);margin:0;">
-            <i class="fas fa-info-circle"></i> Upload new ISOs via the Proxmox UI storage browser.
-          </p>
-          <div style="display:flex;gap:0.75rem;">
-            <button type="button" class="button is-light" onclick="closeCdromModal()">Cancel</button>
-            <button type="submit" class="button is-primary" style="font-weight:600;" id="cdrom-mount-btn" disabled>
-              <span class="icon is-small"><i class="fas fa-compact-disc"></i></span>
-              <span>Mount</span>
+            <div style="flex:2;min-width:180px;">
+              <label style="font-size:0.75rem;color:var(--text-muted, #7a7a7a);display:block;margin-bottom:0.25rem;">ISO File</label>
+              <div class="file is-small has-name is-fullwidth">
+                <label class="file-label" style="width:100%;">
+                  <input class="file-input" type="file" name="iso_file" accept=".iso" required
+                         onchange="document.getElementById('iso-file-name').textContent=this.files[0]?this.files[0].name:'Choose file...'">
+                  <span class="file-cta" style="padding-right:0.75rem;">
+                    <span class="file-icon"><i class="fas fa-upload"></i></span>
+                    <span class="file-label">Browse</span>
+                  </span>
+                  <span class="file-name" id="iso-file-name" style="max-width:200px;">Choose file...</span>
+                </label>
+              </div>
+            </div>
+            <button type="submit" class="button is-small is-info" style="font-weight:600;" id="iso-upload-btn">
+              <span class="icon is-small"><i class="fas fa-upload"></i></span>
+              <span>Upload</span>
             </button>
           </div>
-        </footer>
-      </form>
+        </form>
+        <div id="iso-upload-progress" style="display:none;margin-top:0.75rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--link-color, #3273dc);">
+            <span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>
+            <span>Uploading ISO to Proxmox...</span>
+          </div>
+        </div>
+      </section>
+
+      <footer class="modal-card-foot" style="justify-content:flex-end;gap:0.75rem;">
+        <button type="button" class="button is-light" onclick="closeCdromModal()">Cancel</button>
+        <button type="button" class="button is-primary" style="font-weight:600;" id="cdrom-mount-btn" disabled
+                onclick="document.getElementById('cdrom-form').submit();">
+          <span class="icon is-small"><i class="fas fa-compact-disc"></i></span>
+          <span>Mount ISO</span>
+        </button>
+      </footer>
     </div>
   </div>
 
@@ -419,23 +465,33 @@
 
   // CD-ROM modal
   function openCdromModal(iface) {
-    document.getElementById('cdrom-interface').value = iface;
-    // Set the dropdown to match the interface
-    var sel = document.getElementById('cdrom-iface-select');
-    if (sel) { for (var i=0;i<sel.options.length;i++) { if (sel.options[i].value===iface) sel.selectedIndex=i; } }
+    document.getElementById('cdrom-interface').value = iface || '';
     document.getElementById('cdrom-volid').value = '';
     document.getElementById('cdrom-mount-btn').disabled = true;
     document.getElementById('cdrom-selected').style.display = 'none';
-    document.getElementById('cdrom-browser').style.display = '';
-    // Load ISOs via HTMX when modal opens
-    var browser = document.getElementById('cdrom-browser');
-    browser.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--text-muted,#7a7a7a);"><span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:0.5rem;"></span> Loading ISOs...</div>';
-    htmx.ajax('GET', '/vm/' + '{{ vmid }}' + '/disks/isos/', {target: '#cdrom-browser', swap: 'innerHTML'});
+    document.getElementById('cdrom-browser').style.display = 'none';
+    document.getElementById('cdrom-browser').innerHTML = '';
+    document.getElementById('cdrom-storage-select').value = '';
     document.getElementById('cdrom-modal').classList.add('is-active');
   }
 
   function closeCdromModal() {
     document.getElementById('cdrom-modal').classList.remove('is-active');
+  }
+
+  function loadPoolIsos() {
+    var storage = document.getElementById('cdrom-storage-select').value;
+    var browser = document.getElementById('cdrom-browser');
+    if (!storage) {
+      browser.style.display = 'none';
+      browser.innerHTML = '';
+      return;
+    }
+    browser.style.display = '';
+    browser.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--text-muted,#7a7a7a);"><span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:0.5rem;"></span> Loading ISOs...</div>';
+    // Clear any previous selection
+    clearIsoSelection();
+    htmx.ajax('GET', '/vm/{{ vmid }}/disks/isos/?storage=' + encodeURIComponent(storage), {target: '#cdrom-browser', swap: 'innerHTML'});
   }
 
   function selectIso(volid, filename) {
@@ -449,7 +505,16 @@
   function clearIsoSelection() {
     document.getElementById('cdrom-volid').value = '';
     document.getElementById('cdrom-selected').style.display = 'none';
-    document.getElementById('cdrom-browser').style.display = '';
+    var browser = document.getElementById('cdrom-browser');
+    if (document.getElementById('cdrom-storage-select').value) {
+      browser.style.display = '';
+    }
     document.getElementById('cdrom-mount-btn').disabled = true;
+  }
+
+  function startIsoUploadSpinner() {
+    document.getElementById('iso-upload-btn').disabled = true;
+    document.getElementById('iso-upload-btn').classList.add('is-loading');
+    document.getElementById('iso-upload-progress').style.display = '';
   }
 </script>
