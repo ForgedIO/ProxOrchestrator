@@ -39,6 +39,12 @@ def _bytes_human(b):
     return f"{b:.1f} PB"
 
 
+def _mb_to_gb_display(mb):
+    """Convert MB to GB for display. Returns int if whole number, float if fractional."""
+    gb = mb / 1024
+    return int(gb) if gb == int(gb) else gb
+
+
 def _parse_disk(interface, raw_value):
     """Parse a Proxmox disk string into a dict.
 
@@ -198,6 +204,9 @@ def _build_vm(raw_config, vm_status, node, vmid):
         "raw_ostype": raw_config.get("ostype", ""),
         "raw_memory": raw_config.get("memory", 2048),
         "raw_balloon": raw_config.get("balloon", 0),
+        # GB values for memory editor (display as clean numbers: 4.0 → 4, 2.5 → 2.5)
+        "memory_gb": _mb_to_gb_display(int(raw_config.get("memory", 2048))),
+        "balloon_gb": _mb_to_gb_display(int(raw_config.get("balloon", 0))),
     }
 
 
@@ -544,12 +553,12 @@ def vm_update_settings(request, vmid):
         kwargs["numa"] = 1 if numa == "1" else 0
 
     elif section == "memory":
-        memory = request.POST.get("memory", "").strip()
-        balloon = request.POST.get("balloon", "").strip()
-        if memory:
-            kwargs["memory"] = int(memory)
-        if balloon is not None:
-            kwargs["balloon"] = int(balloon) if balloon else 0
+        memory_gb = request.POST.get("memory_gb", "").strip()
+        balloon_gb = request.POST.get("balloon_gb", "").strip()
+        if memory_gb:
+            kwargs["memory"] = int(float(memory_gb) * 1024)
+        if balloon_gb is not None:
+            kwargs["balloon"] = int(float(balloon_gb) * 1024) if balloon_gb else 0
 
     elif section == "firmware":
         bios = request.POST.get("bios", "").strip()

@@ -409,10 +409,11 @@
         </div>
         {% endif %}
         <div class="field">
-          <label class="label" style="font-size:0.85rem;">Allocated RAM (MB)</label>
+          <label class="label" style="font-size:0.85rem;">Allocated RAM (GB)</label>
           <div class="control">
-            <input class="input" type="number" name="memory" value="{{ vm.raw_memory }}" min="64" step="128">
+            <input class="input" type="number" name="memory_gb" value="{{ vm.memory_gb }}" min="0.5" step="0.5" id="memory-gb-input">
           </div>
+          <p class="help">e.g. 2, 4, 8, 16 — or 0.5, 1.5, 2.5 for half-GB increments.</p>
         </div>
         <div class="field">
           <label class="checkbox" style="font-size:0.85rem;">
@@ -423,11 +424,11 @@
           <p class="help">When enabled, Proxmox can reclaim unused memory from the guest OS.</p>
         </div>
         <div class="field" id="balloon-min-field"{% if not vm.raw_balloon %} style="display:none;"{% endif %}>
-          <label class="label" style="font-size:0.85rem;">Balloon Minimum (MB)</label>
+          <label class="label" style="font-size:0.85rem;">Balloon Minimum (GB)</label>
           <div class="control">
-            <input class="input" type="number" name="balloon" value="{% if vm.raw_balloon %}{{ vm.raw_balloon }}{% else %}0{% endif %}" min="0" step="128" id="balloon-input">
+            <input class="input" type="number" name="balloon_gb" value="{{ vm.balloon_gb }}" min="0" step="0.5" id="balloon-input">
           </div>
-          <p class="help">Minimum memory the guest is guaranteed. Must be less than allocated RAM.</p>
+          <p class="help">Minimum memory the guest is guaranteed. Set to 0 to allow full reclaim.</p>
         </div>
       </section>
       <footer class="modal-card-foot" style="justify-content:flex-end;gap:0.75rem;">
