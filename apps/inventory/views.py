@@ -270,6 +270,15 @@ def vm_detail_status(request, vmid):
         vm["node"] = node
         vm["cpu_pct"] = round((vm.get("cpu") or 0) * 100, 1)
         vm["uptime_human"] = _uptime_human(vm.get("uptime", 0))
+        mem_bytes = int(vm.get("mem") or 0)
+        if mem_bytes:
+            for unit in ("B", "KB", "MB", "GB", "TB"):
+                if mem_bytes < 1024:
+                    vm["mem_human"] = f"{mem_bytes:.1f} {unit}"
+                    break
+                mem_bytes /= 1024
+        else:
+            vm["mem_human"] = ""
     except ProxmoxAPIError as exc:
         logger.warning("vm_detail_status vmid %s: %s", vmid, exc)
         return HttpResponse(
