@@ -341,6 +341,16 @@
     }
   });
 
+  // Reload page when VM status changes (e.g. stopped externally)
+  // so action buttons (Delete, Start, Console) update correctly.
+  var initialStatus = '{{ vm.status }}';
+  document.addEventListener('htmx:afterSwap', function(evt) {
+    var banner = document.getElementById('vm-status-banner');
+    if (banner && banner.dataset.status && banner.dataset.status !== initialStatus) {
+      window.location.reload();
+    }
+  });
+
   // Show spinner on delete form submit
   function startDeleteSpinner() {
     var btn = document.getElementById('delete-confirm-btn');

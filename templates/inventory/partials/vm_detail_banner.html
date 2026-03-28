@@ -4,6 +4,7 @@
 <script>window.location.reload();</script>
 {% endif %}
 <div id="vm-status-banner"
+     data-status="{{ vm.status }}"
      {% if transitioning and not stuck %}
      hx-get="/inventory/{{ vm.vmid }}/detail-status/?action={{ action }}&polls={{ polls }}"
      hx-trigger="every 2s"
