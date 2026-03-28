@@ -74,6 +74,7 @@ def _parse_disk(interface, raw_value):
         "size": size,
         "format": fmt,
         "options": extra or "—",
+        "is_unused": interface.startswith("unused"),
     }
 
 
@@ -615,6 +616,57 @@ def vm_disk_resize(request, vmid):
         return redirect(f"/vm/{vmid}/disks/?error=Failed+to+resize+{disk}:+{exc.message}")
 
     return redirect(f"/vm/{vmid}/disks/?success={disk}+increased+by+{add_val}G.")
+
+
+@login_required
+@require_POST
+def vm_disk_detach(request, vmid):
+    """Detach a disk from a VM (moves to unused state, keeps volume on storage)."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    disk = request.POST.get("disk", "").strip()
+
+    if not disk:
+        return redirect(f"/vm/{vmid}/disks/?error=No+disk+specified.")
+
+    try:
+        api = config.get_api_client()
+        # Detach by setting the key to "none" via delete param
+        api.update_vm_config(node, vmid, delete=disk)
+        logger.info("vm_disk_detach vmid=%d: detached %s", vmid, disk)
+        time.sleep(1)
+    except ProxmoxAPIError as exc:
+        logger.error("vm_disk_detach vmid=%d %s: %s", vmid, disk, exc)
+        return redirect(f"/vm/{vmid}/disks/?error=Failed+to+detach+{disk}:+{exc.message}")
+
+    return redirect(f"/vm/{vmid}/disks/?success={disk}+detached+successfully.")
+
+
+@login_required
+@require_POST
+def vm_disk_delete(request, vmid):
+    """Delete an unused disk volume from storage permanently."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    disk = request.POST.get("disk", "").strip()
+
+    if not disk:
+        return redirect(f"/vm/{vmid}/disks/?error=No+disk+specified.")
+
+    if not disk.startswith("unused"):
+        return redirect(f"/vm/{vmid}/disks/?error=Only+detached+(unused)+disks+can+be+deleted.+Detach+first.")
+
+    try:
+        api = config.get_api_client()
+        # Delete unused disk by removing it from config with force
+        api.update_vm_config(node, vmid, delete=disk)
+        logger.info("vm_disk_delete vmid=%d: deleted %s", vmid, disk)
+        time.sleep(1)
+    except ProxmoxAPIError as exc:
+        logger.error("vm_disk_delete vmid=%d %s: %s", vmid, disk, exc)
+        return redirect(f"/vm/{vmid}/disks/?error=Failed+to+delete+{disk}:+{exc.message}")
+
+    return redirect(f"/vm/{vmid}/disks/?success=Disk+deleted+permanently.")
 
 
 # =========================================================================

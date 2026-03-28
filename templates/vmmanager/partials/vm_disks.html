@@ -35,13 +35,36 @@
         <td><span class="format-badge">{{ disk.format|upper }}</span></td>
         <td style="font-size:0.78rem;color:var(--text-muted, #7a7a7a);">{{ disk.options|default:"—" }}</td>
         <td style="text-align:right;padding-right:1.5rem;white-space:nowrap;">
-          {% if not disk.interface|slice:":7" == "unused" %}
-          <button class="button is-small is-info is-light" style="font-weight:600;"
-                  onclick="openResizeModal('{{ disk.interface }}', '{{ disk.size }}')"
-                  title="Increase disk size">
-            <span class="icon is-small"><i class="fas fa-expand-arrows-alt"></i></span>
-            <span>Resize</span>
-          </button>
+          {% if disk.is_unused %}
+            {# Unused/detached disk: offer delete (permanent) #}
+            <button class="button is-small is-danger is-light" style="font-weight:600;"
+                    hx-post="{% url 'vm_disk_delete' vmid %}"
+                    hx-target="#disk-table"
+                    hx-swap="outerHTML"
+                    hx-vals='{"disk": "{{ disk.interface }}"}'
+                    hx-confirm="Permanently delete {{ disk.interface }} ({{ disk.volume }})? The disk data will be destroyed."
+                    title="Delete disk permanently">
+              <span class="icon is-small"><i class="fas fa-trash"></i></span>
+              <span>Delete</span>
+            </button>
+          {% else %}
+            {# Active disk: offer resize and detach #}
+            <button class="button is-small is-info is-light" style="font-weight:600;"
+                    onclick="openResizeModal('{{ disk.interface }}', '{{ disk.size }}')"
+                    title="Increase disk size">
+              <span class="icon is-small"><i class="fas fa-expand-arrows-alt"></i></span>
+              <span>Resize</span>
+            </button>
+            <button class="button is-small is-warning is-light" style="font-weight:600;"
+                    hx-post="{% url 'vm_disk_detach' vmid %}"
+                    hx-target="#disk-table"
+                    hx-swap="outerHTML"
+                    hx-vals='{"disk": "{{ disk.interface }}"}'
+                    hx-confirm="Detach {{ disk.interface }}? The disk will be removed from the VM but kept on storage as an unused volume."
+                    title="Detach disk (keeps volume)">
+              <span class="icon is-small"><i class="fas fa-eject"></i></span>
+              <span>Detach</span>
+            </button>
           {% endif %}
         </td>
       </tr>
