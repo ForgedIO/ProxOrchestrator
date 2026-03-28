@@ -344,13 +344,9 @@
               <button type="button" class="button is-small is-light" onclick="clearIsoSelection()">Change</button>
             </div>
           </div>
-          <div id="cdrom-browser"
-               hx-get="{% url 'vm_iso_list' vmid %}"
-               hx-trigger="load"
-               hx-swap="innerHTML">
+          <div id="cdrom-browser">
             <div style="padding:1rem;text-align:center;color:var(--text-muted, #7a7a7a);">
-              <span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:0.5rem;"></span>
-              Loading ISOs...
+              Click to browse available ISOs.
             </div>
           </div>
         </section>
@@ -431,6 +427,10 @@
     document.getElementById('cdrom-mount-btn').disabled = true;
     document.getElementById('cdrom-selected').style.display = 'none';
     document.getElementById('cdrom-browser').style.display = '';
+    // Load ISOs via HTMX when modal opens
+    var browser = document.getElementById('cdrom-browser');
+    browser.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--text-muted,#7a7a7a);"><span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:0.5rem;"></span> Loading ISOs...</div>';
+    htmx.ajax('GET', '/vm/' + '{{ vmid }}' + '/disks/isos/', {target: '#cdrom-browser', swap: 'innerHTML'});
     document.getElementById('cdrom-modal').classList.add('is-active');
   }
 
