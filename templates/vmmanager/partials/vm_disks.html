@@ -138,7 +138,7 @@
             hx-target="#disk-table"
             hx-swap="outerHTML"
             id="resize-form"
-            onsubmit="startResizeSpinner()">
+            hx-on::before-request="document.getElementById('resize-submit-btn').classList.add('is-loading');document.getElementById('resize-submit-btn').disabled=true;document.getElementById('resize-cancel-btn').disabled=true;">
         {% csrf_token %}
         <input type="hidden" name="disk" id="resize-disk-name" value="">
         <section class="modal-card-body" id="resize-modal-body">
@@ -167,22 +167,6 @@
 </div>
 
 <script>
-  function startResizeSpinner() {
-    var btn = document.getElementById('resize-submit-btn');
-    btn.disabled = true;
-    btn.classList.add('is-loading');
-    document.getElementById('resize-cancel-btn').disabled = true;
-    var body = document.getElementById('resize-modal-body');
-    if (body) {
-      body.innerHTML =
-        '<div style="text-align:center;padding:2rem;">' +
-          '<span class="spinner" style="width:2rem;height:2rem;border-width:3px;display:inline-block;margin-bottom:1rem;"></span>' +
-          '<p style="font-weight:600;font-size:1rem;">Resizing disk...</p>' +
-          '<p style="color:var(--text-muted, #7a7a7a);font-size:0.85rem;">Waiting for Proxmox to update the disk size.</p>' +
-        '</div>';
-    }
-  }
-
   function openResizeModal(disk, currentSize) {
     document.getElementById('resize-disk-name').value = disk;
     document.getElementById('resize-disk-label').textContent = disk;
