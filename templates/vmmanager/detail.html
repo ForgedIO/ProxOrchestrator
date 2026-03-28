@@ -97,7 +97,29 @@
         </div>
         {% empty %}
         <div class="cert-detail-row"><div class="cert-detail-label">VMID</div><div class="cert-detail-value">{{ vm.vmid }}</div></div>
-        <div class="cert-detail-row"><div class="cert-detail-label">Name</div><div class="cert-detail-value">{{ vm.name }}</div></div>
+        <div class="cert-detail-row">
+          <div class="cert-detail-label">Name</div>
+          <div class="cert-detail-value" id="vm-name-display" style="font-family:inherit;font-size:0.875rem;">
+            <span id="vm-name-text">{{ vm.name }}</span>
+            <button class="button is-small is-white" style="margin-left:0.5rem;padding:0 0.4rem;height:1.5rem;" onclick="startRename()" title="Rename VM">
+              <i class="fas fa-pencil-alt" style="font-size:0.7rem;color:var(--text-muted, #7a7a7a);"></i>
+            </button>
+            <form id="vm-rename-form" method="post" action="{% url 'vm_rename' vmid %}" style="display:none;margin:0;">
+              {% csrf_token %}
+              <div style="display:flex;align-items:center;gap:0.4rem;">
+                <input class="input is-small" type="text" name="name" id="vm-rename-input" value="{{ vm.name }}"
+                       style="max-width:220px;" autocomplete="off"
+                       onkeydown="if(event.key==='Escape'){cancelRename();event.preventDefault();}">
+                <button type="submit" class="button is-small is-success" title="Save">
+                  <i class="fas fa-check"></i>
+                </button>
+                <button type="button" class="button is-small is-light" onclick="cancelRename()" title="Cancel">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
         <div class="cert-detail-row"><div class="cert-detail-label">OS Type</div><div class="cert-detail-value">{{ vm.ostype|default:"—" }}</div></div>
         <div class="cert-detail-row"><div class="cert-detail-label">Description</div><div class="cert-detail-value">{{ vm.description|default:"—" }}</div></div>
         {% endfor %}
@@ -342,6 +364,23 @@
     // Disable cancel button
     var cancelBtn = document.querySelector('#delete-vm-modal .modal-card-foot .button.is-light');
     if (cancelBtn) cancelBtn.disabled = true;
+  }
+
+  // Inline rename
+  function startRename() {
+    document.getElementById('vm-name-text').style.display = 'none';
+    document.getElementById('vm-name-text').nextElementSibling.style.display = 'none'; // pencil button
+    document.getElementById('vm-rename-form').style.display = 'block';
+    var input = document.getElementById('vm-rename-input');
+    input.focus();
+    input.select();
+  }
+
+  function cancelRename() {
+    document.getElementById('vm-name-text').style.display = '';
+    document.getElementById('vm-name-text').nextElementSibling.style.display = ''; // pencil button
+    document.getElementById('vm-rename-form').style.display = 'none';
+    document.getElementById('vm-rename-input').value = document.getElementById('vm-name-text').textContent;
   }
 </script>
 {% endblock %}

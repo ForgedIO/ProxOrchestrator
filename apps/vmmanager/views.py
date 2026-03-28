@@ -452,6 +452,34 @@ def vm_clone_status(request, vmid):
 
 
 # =========================================================================
+# VM Rename
+# =========================================================================
+
+
+@login_required
+@require_POST
+def vm_rename(request, vmid):
+    """Rename a VM."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    new_name = request.POST.get("name", "").strip()
+
+    if not new_name:
+        messages.error(request, "VM name cannot be empty.")
+        return redirect("vm_detail", vmid=vmid)
+
+    try:
+        api = config.get_api_client()
+        api.update_vm_config(node, vmid, name=new_name)
+        messages.success(request, f"VM renamed to {new_name}.")
+    except ProxmoxAPIError as exc:
+        logger.error("vm_rename vmid=%d: %s", vmid, exc)
+        messages.error(request, f"Failed to rename VM: {exc.message}")
+
+    return redirect("vm_detail", vmid=vmid)
+
+
+# =========================================================================
 # VM Disk Management
 # =========================================================================
 
