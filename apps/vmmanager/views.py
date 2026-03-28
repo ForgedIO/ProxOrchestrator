@@ -104,6 +104,7 @@ def _parse_nic(interface, raw_value):
         "bridge": opts.get("bridge", "—"),
         "vlan": opts.get("tag", ""),
         "firewall": opts.get("firewall", "0") == "1",
+        "link_down": opts.get("link_down", "0") == "1",
     }
 
 
@@ -447,6 +448,96 @@ def vm_clone_status(request, vmid):
             })
 
     return JsonResponse({"status": "running"})
+
+
+# =========================================================================
+# VM NIC Management
+# =========================================================================
+
+
+def _toggle_nic_link(raw_nic_value, disconnect):
+    """Toggle link_down in a raw Proxmox NIC config string.
+
+    Returns the modified NIC string.
+    """
+    parts = raw_nic_value.split(",")
+    # Remove any existing link_down
+    parts = [p for p in parts if not p.startswith("link_down=")]
+    if disconnect:
+        parts.append("link_down=1")
+    return ",".join(parts)
+
+
+@login_required
+def vm_networks(request, vmid):
+    """HTMX endpoint: return the network interfaces partial."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    networks = []
+    ip_address = ""
+    vm_status = "unknown"
+
+    try:
+        api = config.get_api_client()
+        raw_config = api.get_vm_config(node, vmid)
+        status = api.get_vm_status(node, vmid)
+        vm_status = status.get("status", "unknown")
+
+        for key in sorted(raw_config.keys()):
+            if key.startswith("net"):
+                parsed = _parse_nic(key, raw_config[key])
+                if parsed:
+                    networks.append(parsed)
+
+        if vm_status == "running":
+            try:
+                from apps.inventory.views import _extract_ipv4
+                ifaces = api.get_vm_agent_interfaces(node, vmid)
+                ip_address = _extract_ipv4(ifaces)
+            except Exception:
+                pass
+    except ProxmoxAPIError as exc:
+        return render(request, "vmmanager/partials/vm_networks.html", {
+            "vmid": vmid,
+            "networks": [],
+            "ip_address": "",
+            "vm_status": "unknown",
+            "nic_error": f"Could not load network info: {exc.message}",
+        })
+
+    return render(request, "vmmanager/partials/vm_networks.html", {
+        "vmid": vmid,
+        "networks": networks,
+        "ip_address": ip_address,
+        "vm_status": vm_status,
+    })
+
+
+@login_required
+@require_POST
+def vm_nic_toggle(request, vmid, interface):
+    """Toggle a NIC's connected/disconnected state."""
+    config = ProxmoxConfig.get_config()
+    node = config.default_node
+    action = request.POST.get("action", "")
+
+    if action not in ("connect", "disconnect"):
+        return vm_networks(request, vmid)
+
+    try:
+        api = config.get_api_client()
+        raw_config = api.get_vm_config(node, vmid)
+
+        raw_nic = raw_config.get(interface)
+        if not raw_nic:
+            return vm_networks(request, vmid)
+
+        new_nic = _toggle_nic_link(raw_nic, disconnect=(action == "disconnect"))
+        api.update_vm_config(node, vmid, **{interface: new_nic})
+    except ProxmoxAPIError as exc:
+        logger.error("vm_nic_toggle vmid=%d %s: %s", vmid, interface, exc)
+
+    return vm_networks(request, vmid)
 
 
 # =========================================================================

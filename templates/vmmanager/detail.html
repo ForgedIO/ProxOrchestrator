@@ -230,40 +230,14 @@
     <div class="proxmigrate-card">
       <div class="card-header"><i class="fas fa-ethernet" style="color:#0369a1;"></i> Network Interfaces</div>
       <div style="overflow-x:auto;">
-        {% if vm.networks %}
-        <table class="table is-fullwidth is-narrow" style="margin:0;font-size:0.875rem;">
-          <thead>
-            <tr style="background:#f5f7fa;">
-              <th style="font-size:0.75rem;color:#7a7a7a;font-weight:600;padding:0.75rem 1.5rem;">Interface</th>
-              <th style="font-size:0.75rem;color:#7a7a7a;font-weight:600;">Model</th>
-              <th style="font-size:0.75rem;color:#7a7a7a;font-weight:600;">Bridge</th>
-              <th style="font-size:0.75rem;color:#7a7a7a;font-weight:600;">IP Address</th>
-              <th style="font-size:0.75rem;color:#7a7a7a;font-weight:600;">MAC Address</th>
-              <th style="font-size:0.75rem;color:#7a7a7a;font-weight:600;">VLAN</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for nic in vm.networks %}
-            <tr>
-              <td style="font-family:monospace;font-size:0.82rem;padding-left:1.5rem;font-weight:600;">{{ nic.interface }}</td>
-              <td>{{ nic.model }}</td>
-              <td>{{ nic.bridge }}</td>
-              <td style="font-size:0.82rem;color:#4a4a4a;">
-                {% if forloop.first and vm.ip_address %}
-                  {{ vm.ip_address }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-              <td style="font-family:monospace;font-size:0.8rem;">{{ nic.mac }}</td>
-              <td>{{ nic.vlan|default:"—" }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-          <div style="padding:1.5rem;color:#7a7a7a;font-size:0.875rem;">No network interface information available.</div>
-        {% endif %}
+        <div hx-get="{% url 'vm_networks' vmid %}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+          <div style="padding:1rem;text-align:center;color:var(--text-muted, #7a7a7a);">
+            <span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:0.5rem;"></span>
+            Loading network interfaces...
+          </div>
+        </div>
       </div>
     </div>
   </div>

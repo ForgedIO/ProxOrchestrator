@@ -95,6 +95,28 @@ class ProxmoxAPI:
         except ValueError as exc:
             raise ProxmoxAPIError(f"Invalid JSON from POST {path}: {exc}")
 
+    def _put(self, path, data=None, timeout=15):
+        url = f"{self.base_url}{path}"
+        logger.debug("Proxmox API PUT %s data=%s", url, data)
+        try:
+            resp = self._session.put(url, json=data or {}, timeout=timeout)
+        except Timeout:
+            raise ProxmoxAPIError(f"Request timed out: PUT {path}")
+        except ConnError as exc:
+            raise ProxmoxAPIError(f"Connection error: PUT {path} — {exc}")
+        except RequestException as exc:
+            raise ProxmoxAPIError(f"Request failed: PUT {path} — {exc}")
+
+        if not resp.ok:
+            raise ProxmoxAPIError(
+                f"PUT {path} returned HTTP {resp.status_code}: {resp.text[:200]}",
+                status_code=resp.status_code,
+            )
+        try:
+            return resp.json().get("data", {})
+        except ValueError as exc:
+            raise ProxmoxAPIError(f"Invalid JSON from PUT {path}: {exc}")
+
     def _delete(self, path, timeout=15):
         url = f"{self.base_url}{path}"
         logger.debug("Proxmox API DELETE %s", url)
@@ -275,6 +297,18 @@ class ProxmoxAPI:
     def rollback_vm_snapshot(self, node, vmid, snapname):
         """Rollback a VM to a snapshot. Returns task UPID string."""
         return self._post(f"/nodes/{node}/qemu/{vmid}/snapshot/{snapname}/rollback")
+
+    # ------------------------------------------------------------------
+    # VM (QEMU) configuration
+    # ------------------------------------------------------------------
+
+    def update_vm_config(self, node, vmid, **kwargs):
+        """Update VM configuration. Accepts arbitrary key=value pairs.
+
+        Uses PUT /nodes/{node}/qemu/{vmid}/config which applies changes
+        immediately (no reboot needed for most settings like NIC link state).
+        """
+        return self._put(f"/nodes/{node}/qemu/{vmid}/config", kwargs)
 
     # ------------------------------------------------------------------
     # LXC containers
