@@ -824,12 +824,25 @@ function switchCertTab(name) {
   });
 }
 
-// Auto-switch to upload-signed if there is a pending CSR
-{% if pending_csr %}
-  document.addEventListener('DOMContentLoaded', function() {
+// Auto-switch tab based on state
+document.addEventListener('DOMContentLoaded', function() {
+  // URL param takes priority (used after ACME redirects)
+  var params = new URLSearchParams(window.location.search);
+  var tab = params.get('tab');
+  if (tab) {
+    switchCertTab(tab);
+    return;
+  }
+  // If ACME is configured or active, show ACME tab
+  {% if acme.acme_account_url or acme.is_enabled %}
+    switchCertTab('acme');
+    return;
+  {% endif %}
+  // If there is a pending CSR, show upload-signed tab
+  {% if pending_csr %}
     switchCertTab('upload-signed');
-  });
-{% endif %}
+  {% endif %}
+});
 
 // ACME provider change handler
 function onAcmeProviderChange() {

@@ -457,7 +457,7 @@ def acme_configure(request):
 
     if not domain:
         messages.error(request, "Domain is required.")
-        return redirect("cert_settings")
+        return redirect("/settings/certificates/?tab=acme")
 
     # Auto-fill directory URL from provider preset
     if provider in DIRECTORY_URLS:
@@ -466,7 +466,7 @@ def acme_configure(request):
         directory_url = request.POST.get("directory_url", "").strip()
         if not directory_url:
             messages.error(request, "Directory URL is required for custom providers.")
-            return redirect("cert_settings")
+            return redirect("/settings/certificates/?tab=acme")
 
     config.provider = provider
     config.directory_url = directory_url
@@ -506,7 +506,7 @@ def acme_configure(request):
     finally:
         _cleanup_ca_bundle(verify)
 
-    return redirect("cert_settings")
+    return redirect("/settings/certificates/?tab=acme")
 
 
 @_staff_required
@@ -518,7 +518,7 @@ def acme_issue(request):
     config = AcmeConfig.get_config()
     if not config.domain or not config.acme_account_url:
         messages.error(request, "ACME is not configured. Configure it first.")
-        return redirect("cert_settings")
+        return redirect("/settings/certificates/?tab=acme")
 
     issue_acme_certificate.delay()
     AcmeLog.log("renewal_triggered", f"Manual issuance by {request.user}")
@@ -526,7 +526,7 @@ def acme_issue(request):
         request,
         "Certificate issuance started. This page will update when complete.",
     )
-    return redirect("cert_settings")
+    return redirect("/settings/certificates/?tab=acme")
 
 
 @_staff_required
@@ -556,7 +556,7 @@ def acme_dns_confirm(request):
     r.set(REDIS_DNS_CONFIRM_KEY, "1", ex=3600)
 
     messages.info(request, "DNS confirmation sent. Waiting for validation...")
-    return redirect("cert_settings")
+    return redirect("/settings/certificates/?tab=acme")
 
 
 @_staff_required
@@ -568,7 +568,7 @@ def acme_disable(request):
     config.save(update_fields=["is_enabled", "updated_at"])
     AcmeLog.log("acme_disabled", f"Disabled by {request.user}")
     messages.success(request, "ACME automation disabled. Current certificate is unchanged.")
-    return redirect("cert_settings")
+    return redirect("/settings/certificates/?tab=acme")
 
 
 @_staff_required
@@ -592,4 +592,4 @@ def acme_reset(request):
     config.save()
     AcmeLog.log("config_changed", f"Configuration reset by {request.user}")
     messages.success(request, "ACME configuration reset. You can now reconfigure.")
-    return redirect("cert_settings")
+    return redirect("/settings/certificates/?tab=acme")
