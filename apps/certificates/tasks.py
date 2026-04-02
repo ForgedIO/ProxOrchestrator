@@ -322,6 +322,29 @@ def issue_acme_certificate(self):
         )
 
         _install_cert_and_key(cert_pem, cert_key_pem)
+
+        # Update config BEFORE reloading nginx so the HTMX poll can
+        # fetch the success state before the connection resets
+        config.is_enabled = True
+        config.issuing_in_progress = False
+        config.issuing_stage = "Certificate installed. Reloading web server..."
+        config.last_renewed_at = timezone.now()
+        config.last_renewal_error = ""
+        config.notify_30_sent = False
+        config.notify_14_sent = False
+        config.notify_7_sent = False
+        config.save(update_fields=[
+            "is_enabled", "issuing_in_progress", "issuing_stage",
+            "last_renewed_at", "last_renewal_error",
+            "notify_30_sent", "notify_14_sent", "notify_7_sent", "updated_at",
+        ])
+        AcmeLog.log("cert_issued", f"Certificate issued for {config.domain}")
+
+        # Brief delay so the browser's next poll picks up the success state
+        # before nginx reloads and resets the HTTPS connection
+        import time
+        time.sleep(5)
+
         _reload_nginx()
         logger.info("ACME certificate installed for %s", config.domain)
 
@@ -340,22 +363,9 @@ def issue_acme_certificate(self):
             except Exception as exc:
                 logger.warning("DNS TXT cleanup failed (non-fatal): %s", exc)
 
-        # Step 6: Update config
-        config.is_enabled = True
-        config.issuing_in_progress = False
+        # Clear the stage text now that nginx has reloaded
         config.issuing_stage = ""
-        config.last_renewed_at = timezone.now()
-        config.last_renewal_error = ""
-        config.notify_30_sent = False
-        config.notify_14_sent = False
-        config.notify_7_sent = False
-        config.save(update_fields=[
-            "is_enabled", "issuing_in_progress", "issuing_stage",
-            "last_renewed_at", "last_renewal_error",
-            "notify_30_sent", "notify_14_sent", "notify_7_sent", "updated_at",
-        ])
-
-        AcmeLog.log("cert_issued", f"Certificate issued for {config.domain}")
+        config.save(update_fields=["issuing_stage", "updated_at"])
 
     except Exception as exc:
         config.refresh_from_db()

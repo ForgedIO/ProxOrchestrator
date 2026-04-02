@@ -1,7 +1,3 @@
-{# HTMX partial: ACME issuance status.
-   In-progress states include hx-get/hx-trigger to keep polling.
-   Terminal states (success, error) have no polling — they stay put. #}
-
 {% if acme.issuing_in_progress %}
   <div class="proxmigrate-card" style="margin-top:1.25rem;border-left:4px solid #3273dc;border-radius:0 10px 10px 0;"
        hx-get="{% url 'acme_status' %}" hx-trigger="every 3s" hx-target="#acme-status-area" hx-swap="innerHTML">
