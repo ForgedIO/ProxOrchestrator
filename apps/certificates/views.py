@@ -512,20 +512,98 @@ def acme_configure(request):
 @_staff_required
 @require_POST
 def acme_issue(request):
-    """Trigger ACME certificate issuance as a background task."""
+    """Start ACME certificate issuance.
+
+    For HTTP-01: triggers the full flow as a background task.
+    For DNS-01: creates the order synchronously, saves the TXT record
+    value to the database, and returns to the page so the user can see
+    it and create the DNS record at their own pace.
+    """
+    from apps.certificates import acme
     from apps.certificates.tasks import issue_acme_certificate
+    from apps.certificates.tasks import _get_verify
+    from apps.certificates.tasks import _cleanup_ca_bundle
 
     config = AcmeConfig.get_config()
     if not config.domain or not config.acme_account_url:
         messages.error(request, "ACME is not configured. Configure it first.")
         return redirect("/settings/certificates/?tab=acme")
 
-    issue_acme_certificate.delay()
-    AcmeLog.log("renewal_triggered", f"Manual issuance by {request.user}")
-    messages.info(
-        request,
-        "Certificate issuance started. This page will update when complete.",
-    )
+    if config.challenge_type == "http-01":
+        # HTTP-01: fully automated, run everything in the background
+        issue_acme_certificate.delay()
+        AcmeLog.log("renewal_triggered", f"Manual issuance by {request.user}")
+        messages.info(
+            request,
+            "Certificate issuance started. This may take a minute.",
+        )
+        return redirect("/settings/certificates/?tab=acme")
+
+    # DNS-01: create order and get TXT value synchronously so the user can see it
+    verify = _get_verify(config)
+    try:
+        key_pem = config.acme_account_key_pem
+        account_url = config.acme_account_url
+
+        order_url, order = acme.create_order(
+            key_pem, account_url, config.directory_url, config.domain,
+            verify=verify,
+        )
+        AcmeLog.log("order_created", f"Order for {config.domain}")
+
+        # Save order URL for the background task to use later
+        config.last_renewal_error = ""
+
+        if order.get("status") in ("ready", "valid"):
+            # Internal CA that skips challenges — go straight to background task
+            issue_acme_certificate.delay()
+            messages.info(request, "CA does not require a challenge. Issuing certificate...")
+            return redirect("/settings/certificates/?tab=acme")
+
+        # Get the DNS-01 challenge
+        for auth_url in order.get("authorizations", []):
+            auth = acme.get_authorization(
+                key_pem, account_url, auth_url, verify=verify,
+            )
+            if auth.get("status") == "valid":
+                continue
+
+            challenge = acme.get_dns01_challenge(auth)
+            if not challenge:
+                messages.error(request, "No DNS-01 challenge available from the CA.")
+                return redirect("/settings/certificates/?tab=acme")
+
+            txt_value = acme.compute_dns01_txt_value(key_pem, challenge["token"])
+
+            # Save to database — this persists until the user confirms
+            config.dns_txt_value = txt_value
+            config.dns_challenge_pending = True
+            config.save(update_fields=[
+                "dns_txt_value", "dns_challenge_pending",
+                "last_renewal_error", "updated_at",
+            ])
+
+            AcmeLog.log(
+                "challenge_completed",
+                f"DNS-01 TXT record ready: _acme-challenge.{config.domain}",
+            )
+            messages.success(
+                request,
+                "DNS TXT record generated. Create the record at your DNS "
+                "provider, then click the confirm button.",
+            )
+            return redirect("/settings/certificates/?tab=acme")
+
+        # All authorizations already valid
+        issue_acme_certificate.delay()
+        messages.info(request, "All authorizations valid. Issuing certificate...")
+
+    except Exception as exc:
+        logger.error("ACME order creation failed: %s", exc)
+        messages.error(request, f"Failed to create order: {exc}")
+    finally:
+        _cleanup_ca_bundle(verify)
+
     return redirect("/settings/certificates/?tab=acme")
 
 
@@ -550,12 +628,23 @@ def acme_status(request):
 @_staff_required
 @require_POST
 def acme_dns_confirm(request):
-    """User confirms the DNS TXT record has been created."""
+    """User confirms the DNS TXT record has been created. Trigger finalization."""
+    from apps.certificates.tasks import issue_acme_certificate
+
+    # Set the Redis flag so the task knows DNS is confirmed
     broker_url = getattr(settings, "CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
     r = redis.Redis.from_url(broker_url)
     r.set(REDIS_DNS_CONFIRM_KEY, "1", ex=3600)
 
-    messages.info(request, "DNS confirmation sent. Waiting for validation...")
+    # Trigger the background task — it will pick up the existing order
+    # and respond to the challenge now that DNS is confirmed
+    issue_acme_certificate.delay()
+    AcmeLog.log("renewal_triggered", "DNS-01 confirmed, starting finalization")
+
+    messages.info(
+        request,
+        "DNS confirmed. Certificate issuance in progress — this may take a minute.",
+    )
     return redirect("/settings/certificates/?tab=acme")
 
 
