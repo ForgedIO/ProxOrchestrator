@@ -562,9 +562,9 @@
               <div class="cert-detail-label">Auto-Renewal</div>
               <div class="cert-detail-value">
                 {% if acme.challenge_type == 'http-01' %}
-                  <span style="color:#257953;"><i class="fas fa-check"></i> Enabled (daily at 03:30 UTC)</span>
+                  <span style="color:#257953;"><i class="fas fa-check"></i> Automatic (renews at half cert validity)</span>
                 {% else %}
-                  <span style="color:#b45309;"><i class="fas fa-exclamation-triangle"></i> Manual (DNS-01 requires user action)</span>
+                  <span style="color:#257953;"><i class="fas fa-check"></i> Semi-automatic (emails TXT record to admins at half cert validity)</span>
                 {% endif %}
               </div>
             </div>

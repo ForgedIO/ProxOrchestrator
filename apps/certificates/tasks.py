@@ -331,31 +331,123 @@ def issue_acme_certificate(self):
 
 @shared_task(name="certificates.check_cert_expiry")
 def check_cert_expiry():
-    """Daily task: check certificate expiry, auto-renew or send alerts."""
-    from apps.certificates.models import AcmeConfig
+    """Daily task: check certificate expiry, auto-renew or send alerts.
+
+    Renewal triggers at the halfway point of the certificate's validity
+    period (e.g. a 90-day cert renews at 45 days remaining).
+    """
+    from apps.certificates.models import AcmeConfig, AcmeLog
 
     cert_info = _get_cert_info()
-    if not cert_info or "not_after" not in cert_info:
+    if not cert_info or "not_after" not in cert_info or "not_before" not in cert_info:
         return
 
-    days_remaining = (cert_info["not_after"] - timezone.now()).days
-    logger.info("Certificate expires in %d days", days_remaining)
+    now = timezone.now()
+    days_remaining = (cert_info["not_after"] - now).days
+    total_validity = (cert_info["not_after"] - cert_info["not_before"]).days
+    renewal_threshold = max(total_validity // 2, 7)  # half validity, minimum 7 days
+
+    logger.info(
+        "Certificate: %d days remaining, %d day validity, renew at %d days",
+        days_remaining, total_validity, renewal_threshold,
+    )
 
     config = AcmeConfig.get_config()
 
-    # Auto-renew if ACME is enabled and HTTP-01
-    if config.is_enabled and days_remaining <= 30:
+    if config.is_enabled and days_remaining <= renewal_threshold:
         if config.challenge_type == "http-01":
             logger.info("Auto-renewing certificate via ACME (HTTP-01)")
+            config.issuing_in_progress = True
+            config.issuing_stage = "Auto-renewal starting..."
+            config.save(update_fields=["issuing_in_progress", "issuing_stage", "updated_at"])
             issue_acme_certificate.delay()
+            AcmeLog.log("renewal_triggered", f"Auto-renewal (HTTP-01), {days_remaining} days remaining")
             return
         else:
-            logger.info(
-                "Certificate expiring but DNS-01 requires manual renewal — sending alerts"
-            )
+            # DNS-01: auto-trigger the order and email the TXT value
+            logger.info("Auto-triggering DNS-01 renewal, emailing TXT value to admins")
+            _auto_trigger_dns01_renewal(config, days_remaining)
+            return
 
     # Send email alerts at thresholds
     _send_expiry_alerts(config, days_remaining)
+
+
+def _auto_trigger_dns01_renewal(config, days_remaining):
+    """Create an ACME order for DNS-01 and email the TXT value to staff."""
+    from apps.certificates.models import AcmeLog
+
+    verify = _get_verify(config)
+    try:
+        key_pem = config.acme_account_key_pem
+        account_url = config.acme_account_url
+
+        order_url, order = acme.create_order(
+            key_pem, account_url, config.directory_url, config.domain,
+            verify=verify,
+        )
+
+        if order.get("status") in ("ready", "valid"):
+            # Internal CA skipping challenges — just issue directly
+            config.issuing_in_progress = True
+            config.issuing_stage = "Auto-renewal starting..."
+            config.save(update_fields=["issuing_in_progress", "issuing_stage", "updated_at"])
+            issue_acme_certificate.delay()
+            return
+
+        for auth_url in order.get("authorizations", []):
+            auth = acme.get_authorization(key_pem, account_url, auth_url, verify=verify)
+            if auth.get("status") == "valid":
+                continue
+
+            challenge = acme.get_dns01_challenge(auth)
+            if not challenge:
+                continue
+
+            txt_value = acme.compute_dns01_txt_value(key_pem, challenge["token"])
+
+            config.dns_txt_value = txt_value
+            config.dns_challenge_pending = True
+            config.pending_order_url = order_url
+            config.pending_challenge_url = challenge["url"]
+            config.save(update_fields=[
+                "dns_txt_value", "dns_challenge_pending",
+                "pending_order_url", "pending_challenge_url", "updated_at",
+            ])
+
+            AcmeLog.log("renewal_triggered", f"Auto-renewal (DNS-01), {days_remaining} days remaining")
+
+            # Email the TXT record to all staff
+            staff_emails = list(
+                User.objects.filter(is_staff=True)
+                .exclude(email="")
+                .values_list("email", flat=True)
+            )
+            if staff_emails:
+                send_mail(
+                    f"[ProxMigrate] DNS record needed for certificate renewal",
+                    f"ProxMigrate needs to renew its TLS certificate "
+                    f"({days_remaining} days remaining).\n\n"
+                    f"Please create or update this DNS TXT record:\n\n"
+                    f"  Name:  _acme-challenge.{config.domain}\n"
+                    f"  Value: {txt_value}\n\n"
+                    f"Then log in to ProxMigrate and click "
+                    f"'I've Created the DNS Record' on the Certificates page.\n\n"
+                    f"— ProxMigrate",
+                    None,
+                    staff_emails,
+                    fail_silently=True,
+                )
+                logger.info("Sent DNS-01 renewal TXT value to %d staff users", len(staff_emails))
+
+            return
+
+    except Exception as exc:
+        logger.error("Auto DNS-01 renewal trigger failed: %s", exc)
+        from apps.certificates.models import AcmeLog
+        AcmeLog.log("renewal_failed", f"Auto DNS-01 trigger: {exc}")
+    finally:
+        _cleanup_ca_bundle(verify)
 
 
 def _send_expiry_alerts(config, days_remaining):
