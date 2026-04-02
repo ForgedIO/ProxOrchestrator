@@ -147,10 +147,18 @@ def issue_acme_certificate(self):
     if not config.domain:
         raise AcmeError("No domain configured for ACME")
 
+    def _set_stage(stage):
+        config.refresh_from_db()
+        config.issuing_in_progress = True
+        config.issuing_stage = stage
+        config.save(update_fields=["issuing_in_progress", "issuing_stage", "updated_at"])
+
     verify = _get_verify(config)
     token = None
 
     try:
+        _set_stage("Registering account...")
+
         # Step 1: Account registration
         if not config.acme_account_key_pem:
             logger.info("Generating ACME account key")
@@ -174,6 +182,7 @@ def issue_acme_certificate(self):
         account_url = config.acme_account_url
 
         # Step 2: Create order
+        _set_stage("Creating certificate order...")
         logger.info("Creating ACME order for %s", config.domain)
         order_url, order = acme.create_order(
             key_pem, account_url, config.directory_url, config.domain,
@@ -182,6 +191,7 @@ def issue_acme_certificate(self):
         AcmeLog.log("order_created", f"Order for {config.domain}")
 
         # Step 3: Handle authorizations (if needed)
+        _set_stage("Validating domain ownership...")
         if order.get("status") not in ("ready", "valid"):
             for auth_url in order.get("authorizations", []):
                 auth = acme.get_authorization(
@@ -269,11 +279,13 @@ def issue_acme_certificate(self):
                     AcmeLog.log("challenge_completed", "DNS-01 challenge submitted")
 
             # Poll order until ready
+            _set_stage("Waiting for CA to validate challenge...")
             order = acme.poll_order(
                 key_pem, account_url, order_url, verify=verify,
             )
 
         # Step 4: Generate CSR and finalize
+        _set_stage("Generating CSR and finalizing order...")
         logger.info("Finalizing ACME order for %s", config.domain)
         cert_key_pem, csr_der = acme.generate_csr(config.domain)
 
@@ -292,6 +304,7 @@ def issue_acme_certificate(self):
             )
 
         # Step 5: Download and install certificate
+        _set_stage("Downloading and installing certificate...")
         cert_url = order.get("certificate")
         if not cert_url:
             raise AcmeError("No certificate URL in finalized order")
@@ -306,13 +319,16 @@ def issue_acme_certificate(self):
 
         # Step 6: Update config
         config.is_enabled = True
+        config.issuing_in_progress = False
+        config.issuing_stage = ""
         config.last_renewed_at = timezone.now()
         config.last_renewal_error = ""
         config.notify_30_sent = False
         config.notify_14_sent = False
         config.notify_7_sent = False
         config.save(update_fields=[
-            "is_enabled", "last_renewed_at", "last_renewal_error",
+            "is_enabled", "issuing_in_progress", "issuing_stage",
+            "last_renewed_at", "last_renewal_error",
             "notify_30_sent", "notify_14_sent", "notify_7_sent", "updated_at",
         ])
 
@@ -320,8 +336,13 @@ def issue_acme_certificate(self):
 
     except Exception as exc:
         config.refresh_from_db()
+        config.issuing_in_progress = False
+        config.issuing_stage = ""
         config.last_renewal_error = str(exc)
-        config.save(update_fields=["last_renewal_error", "updated_at"])
+        config.save(update_fields=[
+            "issuing_in_progress", "issuing_stage",
+            "last_renewal_error", "updated_at",
+        ])
         AcmeLog.log("renewal_failed", str(exc))
         logger.error("ACME certificate issuance failed: %s", exc)
         raise

@@ -531,6 +531,13 @@ def acme_issue(request):
 
     if config.challenge_type == "http-01":
         # HTTP-01: fully automated, run everything in the background
+        config.issuing_in_progress = True
+        config.issuing_stage = "Starting..."
+        config.last_renewal_error = ""
+        config.save(update_fields=[
+            "issuing_in_progress", "issuing_stage",
+            "last_renewal_error", "updated_at",
+        ])
         issue_acme_certificate.delay()
         AcmeLog.log("renewal_triggered", f"Manual issuance by {request.user}")
         messages.info(
@@ -636,8 +643,17 @@ def acme_dns_confirm(request):
     r = redis.Redis.from_url(broker_url)
     r.set(REDIS_DNS_CONFIRM_KEY, "1", ex=3600)
 
-    # Trigger the background task — it will pick up the existing order
-    # and respond to the challenge now that DNS is confirmed
+    # Mark as in progress and trigger the background task
+    config = AcmeConfig.get_config()
+    config.issuing_in_progress = True
+    config.issuing_stage = "DNS confirmed, responding to challenge..."
+    config.dns_challenge_pending = False
+    config.last_renewal_error = ""
+    config.save(update_fields=[
+        "issuing_in_progress", "issuing_stage",
+        "dns_challenge_pending", "last_renewal_error", "updated_at",
+    ])
+
     issue_acme_certificate.delay()
     AcmeLog.log("renewal_triggered", "DNS-01 confirmed, starting finalization")
 

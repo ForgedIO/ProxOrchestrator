@@ -77,6 +77,10 @@ class AcmeConfig(models.Model):
     dns_txt_value = models.CharField(max_length=500, blank=True)
     dns_challenge_pending = models.BooleanField(default=False)
 
+    # Issuance tracking
+    issuing_in_progress = models.BooleanField(default=False)
+    issuing_stage = models.CharField(max_length=100, blank=True)
+
     # Renewal tracking
     last_renewed_at = models.DateTimeField(null=True, blank=True)
     last_renewal_error = models.TextField(blank=True)
