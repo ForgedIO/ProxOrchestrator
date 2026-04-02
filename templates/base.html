@@ -168,6 +168,7 @@
   // Auto-dismiss notifications after 5s
   // -----------------------------------------------------------------------
   document.querySelectorAll('.notification').forEach(n => {
+    if (n.dataset.persist) return;
     setTimeout(() => {
       n.style.opacity = '0';
       n.style.transition = 'opacity 0.5s';

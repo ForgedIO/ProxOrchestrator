@@ -34,6 +34,7 @@
             {% elif cert_days_remaining > 0 %}is-warning is-light
             {% else %}is-danger is-light
             {% endif %}"
+            data-persist="true"
             style="padding:0.6rem 0.9rem;margin-bottom:1.25rem;border-radius:6px;font-size:0.82rem;">
             {% if cert_days_remaining > 30 %}
               <i class="fas fa-check-circle" style="margin-right:0.4rem;"></i>
@@ -530,7 +531,7 @@
 
           {% if acme.is_enabled %}
             {# ── State 3: Active & managed ── #}
-            <div class="notification is-success is-light" style="padding:0.75rem 1rem;margin-bottom:1.25rem;border-radius:6px;font-size:0.85rem;">
+            <div class="notification is-success is-light" data-persist="true" style="padding:0.75rem 1rem;margin-bottom:1.25rem;border-radius:6px;font-size:0.85rem;">
               <i class="fas fa-check-circle" style="margin-right:0.4rem;"></i>
               <strong>Automated certificate management is active.</strong>
             </div>
@@ -569,7 +570,7 @@
             </div>
 
             {% if acme.last_renewal_error %}
-            <div class="notification is-danger is-light" style="padding:0.6rem 0.9rem;margin-top:1rem;font-size:0.82rem;">
+            <div class="notification is-danger is-light" data-persist="true" style="padding:0.6rem 0.9rem;margin-top:1rem;font-size:0.82rem;">
               <i class="fas fa-times-circle" style="margin-right:0.4rem;"></i>
               <strong>Last error:</strong> {{ acme.last_renewal_error }}
             </div>
@@ -609,7 +610,7 @@
 
           {% elif acme.acme_account_url %}
             {# ── State 2: Configured, ready to issue ── #}
-            <div class="notification is-info is-light" style="padding:0.75rem 1rem;margin-bottom:1.25rem;border-radius:6px;font-size:0.85rem;">
+            <div class="notification is-info is-light" data-persist="true" style="padding:0.75rem 1rem;margin-bottom:1.25rem;border-radius:6px;font-size:0.85rem;">
               <i class="fas fa-info-circle" style="margin-right:0.4rem;"></i>
               ACME account registered. Ready to issue a certificate.
             </div>
@@ -632,28 +633,39 @@
             </div>
 
             {% if acme.dns_challenge_pending %}
-            <div class="notification is-warning is-light" style="padding:0.75rem 1rem;margin-top:1.25rem;border-radius:6px;">
-              <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">
-                <i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i>
-                DNS Record Required
+            <div class="proxmigrate-card" style="margin-top:1.25rem;border-left:4px solid #f59e0b;border-radius:0 10px 10px 0;">
+              <div class="card-header" style="background:#fffbeb;">
+                <i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> DNS Record Required
               </div>
-              <div style="font-size:0.82rem;margin-bottom:0.75rem;">
-                Create this DNS TXT record at your DNS provider:
+              <div class="card-body">
+                <div style="font-size:0.82rem;margin-bottom:0.75rem;">
+                  Create this DNS TXT record at your DNS provider:
+                </div>
+                <div style="background:#f9f9f9;padding:0.75rem;border-radius:4px;margin-bottom:0.75rem;">
+                  <div style="font-size:0.78rem;color:#7a7a7a;">Name:</div>
+                  <div style="font-family:monospace;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">_acme-challenge.{{ acme.domain }}</div>
+                  <div style="font-size:0.78rem;color:#7a7a7a;">Value:</div>
+                  <div style="font-family:monospace;font-size:0.85rem;font-weight:600;word-break:break-all;">{{ acme.dns_txt_value }}</div>
+                  <div style="font-size:0.78rem;color:#7a7a7a;margin-top:0.4rem;">TTL: 300 (or lowest available)</div>
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                  <form method="post" action="{% url 'acme_dns_confirm' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="button is-warning" style="font-weight:600;">
+                      <span class="icon"><i class="fas fa-check"></i></span>
+                      <span>I've Created the DNS Record</span>
+                    </button>
+                  </form>
+                  <form method="post" action="{% url 'acme_reset' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="button is-light" style="font-weight:600;"
+                      onclick="return confirm('Cancel and reset ACME configuration?')">
+                      <span class="icon"><i class="fas fa-undo"></i></span>
+                      <span>Reconfigure</span>
+                    </button>
+                  </form>
+                </div>
               </div>
-              <div style="background:#f9f9f9;padding:0.75rem;border-radius:4px;margin-bottom:0.75rem;">
-                <div style="font-size:0.78rem;color:#7a7a7a;">Name:</div>
-                <div style="font-family:monospace;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">_acme-challenge.{{ acme.domain }}</div>
-                <div style="font-size:0.78rem;color:#7a7a7a;">Value:</div>
-                <div style="font-family:monospace;font-size:0.85rem;font-weight:600;word-break:break-all;">{{ acme.dns_txt_value }}</div>
-                <div style="font-size:0.78rem;color:#7a7a7a;margin-top:0.4rem;">TTL: 300 (or lowest available)</div>
-              </div>
-              <form method="post" action="{% url 'acme_dns_confirm' %}">
-                {% csrf_token %}
-                <button type="submit" class="button is-warning" style="font-weight:600;">
-                  <span class="icon"><i class="fas fa-check"></i></span>
-                  <span>I've Created the DNS Record</span>
-                </button>
-              </form>
             </div>
             {% else %}
             <div style="display:flex;gap:0.5rem;margin-top:1.25rem;">
@@ -676,7 +688,7 @@
             {% endif %}
 
             {% if acme.last_renewal_error %}
-            <div class="notification is-danger is-light" style="padding:0.6rem 0.9rem;margin-top:1rem;font-size:0.82rem;">
+            <div class="notification is-danger is-light" data-persist="true" style="padding:0.6rem 0.9rem;margin-top:1rem;font-size:0.82rem;">
               <i class="fas fa-times-circle" style="margin-right:0.4rem;"></i>
               <strong>Last error:</strong> {{ acme.last_renewal_error }}
             </div>
