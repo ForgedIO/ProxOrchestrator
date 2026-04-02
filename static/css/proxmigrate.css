@@ -344,6 +344,8 @@
   font-weight: 700;
   font-family: monospace;
   letter-spacing: 0.5px;
+  min-width: 3.5rem;
+  text-align: center;
   margin: 0.15rem;
 }
 
