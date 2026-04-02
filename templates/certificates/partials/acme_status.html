@@ -1,0 +1,36 @@
+{# HTMX partial: ACME status for polling during certificate issuance #}
+
+{% if acme.dns_challenge_pending %}
+  <div class="notification is-warning is-light" style="padding:0.75rem 1rem;border-radius:6px;"
+       hx-get="{% url 'acme_status' %}" hx-trigger="every 5s" hx-swap="outerHTML">
+    <i class="fas fa-clock" style="margin-right:0.4rem;"></i>
+    Waiting for DNS record confirmation...
+  </div>
+{% elif acme.last_renewal_error %}
+  <div class="notification is-danger is-light" style="padding:0.75rem 1rem;border-radius:6px;">
+    <i class="fas fa-times-circle" style="margin-right:0.4rem;"></i>
+    <strong>Error:</strong> {{ acme.last_renewal_error }}
+  </div>
+{% elif acme.is_enabled %}
+  <div class="notification is-success is-light" style="padding:0.75rem 1rem;border-radius:6px;">
+    <i class="fas fa-check-circle" style="margin-right:0.4rem;"></i>
+    Certificate issued successfully.
+    {% if cert_days_remaining %}Expires in {{ cert_days_remaining }} days.{% endif %}
+  </div>
+{% else %}
+  <div class="notification is-info is-light" style="padding:0.75rem 1rem;border-radius:6px;"
+       hx-get="{% url 'acme_status' %}" hx-trigger="every 5s" hx-swap="outerHTML">
+    <span class="spinner" style="margin-right:0.4rem;"></span>
+    Certificate issuance in progress...
+  </div>
+{% endif %}
+
+{% if acme_logs %}
+<div style="margin-top:0.75rem;">
+  {% for log in acme_logs %}
+  <div style="font-size:0.75rem;color:#7a7a7a;padding:0.15rem 0;">
+    {{ log.created_at|date:"g:i A" }} &mdash; {{ log.event }}: {{ log.detail|truncatechars:50 }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

@@ -296,8 +296,9 @@ fi
 
 echo "==> Creating runtime directories..."
 UPLOAD_ROOT="${APP_HOME}/uploads"
-mkdir -p "${UPLOAD_ROOT}" "${CERTS_DIR}" "${SSH_DIR}"
-chown -R "${APP_USER}:${APP_USER}" "${UPLOAD_ROOT}" "${CERTS_DIR}" "${SSH_DIR}"
+ACME_CHALLENGE_DIR="${CERTS_DIR}/acme-challenge"
+mkdir -p "${UPLOAD_ROOT}" "${CERTS_DIR}" "${ACME_CHALLENGE_DIR}" "${SSH_DIR}"
+chown -R "${APP_USER}:${APP_USER}" "${UPLOAD_ROOT}" "${CERTS_DIR}" "${ACME_CHALLENGE_DIR}" "${SSH_DIR}"
 chmod 700 "${SSH_DIR}"
 
 # ---------------------------------------------------------------------------
@@ -436,6 +437,7 @@ ${APP_USER} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload
 ${APP_USER} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
 ${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/proxmigrate
 ${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/conf.d/proxmigrate.conf
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /opt/proxmigrate/deploy/acme-challenge.conf
 EOF
 chmod 440 "${SUDOERS_FILE}"
 echo "    Sudoers rule written: ${SUDOERS_FILE}"
@@ -485,6 +487,10 @@ CELERY_SERVICE="/etc/systemd/system/proxmigrate-celery.service"
 
 cp "${APP_HOME}/deploy/gunicorn.service.template" "${GUNICORN_SERVICE}"
 cp "${APP_HOME}/deploy/celery.service.template" "${CELERY_SERVICE}"
+
+# Create empty ACME challenge config (populated by ACME automation when needed)
+touch "${APP_HOME}/deploy/acme-challenge.conf"
+chown "${APP_USER}:${APP_USER}" "${APP_HOME}/deploy/acme-challenge.conf"
 
 # Create RuntimeDirectory parent so systemd tmpfiles doesn't complain
 mkdir -p /run/proxmigrate

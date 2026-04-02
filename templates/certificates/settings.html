@@ -196,6 +196,13 @@
             <span>Self-Signed</span>
           </a>
         </li>
+        <li data-tab="acme">
+          <a onclick="switchCertTab('acme')">
+            <span class="icon is-small"><i class="fas fa-lock"></i></span>
+            <span>Certificate Automation (ACME)</span>
+            {% if acme.is_enabled %}<span class="tag is-success is-light" style="margin-left:0.4rem;font-size:0.65rem;">Active</span>{% endif %}
+          </a>
+        </li>
       </ul>
     </div>
 
@@ -513,6 +520,281 @@
       </div>
     </div>
 
+    {# ===== Tab: Certificate Automation (ACME) ===== #}
+    <div class="tab-pane" id="tab-acme" style="display:none;">
+      <div class="proxmigrate-card" style="border-radius:0 10px 10px 10px;">
+        <div class="card-header">
+          <i class="fas fa-lock" style="color:#3273dc;"></i> Certificate Automation (ACME)
+        </div>
+        <div class="card-body">
+
+          {% if acme.is_enabled %}
+            {# ── State 3: Active & managed ── #}
+            <div class="notification is-success is-light" style="padding:0.75rem 1rem;margin-bottom:1.25rem;border-radius:6px;font-size:0.85rem;">
+              <i class="fas fa-check-circle" style="margin-right:0.4rem;"></i>
+              <strong>Automated certificate management is active.</strong>
+            </div>
+
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Provider</div>
+              <div class="cert-detail-value">{{ acme.get_provider_display }}</div>
+            </div>
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Domain</div>
+              <div class="cert-detail-value" style="font-family:monospace;">{{ acme.domain }}</div>
+            </div>
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Challenge</div>
+              <div class="cert-detail-value">{{ acme.get_challenge_type_display }}</div>
+            </div>
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Last Renewed</div>
+              <div class="cert-detail-value">{{ acme.last_renewed_at|date:"N j, Y g:i A"|default:"\u2014" }}</div>
+            </div>
+            {% if cert_days_remaining is not None %}
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Expires In</div>
+              <div class="cert-detail-value">{{ cert_days_remaining }} days</div>
+            </div>
+            {% endif %}
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Auto-Renewal</div>
+              <div class="cert-detail-value">
+                {% if acme.challenge_type == 'http-01' %}
+                  <span style="color:#257953;"><i class="fas fa-check"></i> Enabled (daily at 03:30 UTC)</span>
+                {% else %}
+                  <span style="color:#b45309;"><i class="fas fa-exclamation-triangle"></i> Manual (DNS-01 requires user action)</span>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if acme.last_renewal_error %}
+            <div class="notification is-danger is-light" style="padding:0.6rem 0.9rem;margin-top:1rem;font-size:0.82rem;">
+              <i class="fas fa-times-circle" style="margin-right:0.4rem;"></i>
+              <strong>Last error:</strong> {{ acme.last_renewal_error }}
+            </div>
+            {% endif %}
+
+            <div style="display:flex;gap:0.5rem;margin-top:1.25rem;">
+              <form method="post" action="{% url 'acme_issue' %}">
+                {% csrf_token %}
+                <button type="submit" class="button is-primary" style="font-weight:600;">
+                  <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                  <span>Renew Now</span>
+                </button>
+              </form>
+              <form method="post" action="{% url 'acme_disable' %}">
+                {% csrf_token %}
+                <button type="submit" class="button is-light" style="font-weight:600;"
+                  onclick="return confirm('Disable ACME automation? The current certificate will remain in place.')">
+                  <span class="icon"><i class="fas fa-power-off"></i></span>
+                  <span>Disable ACME</span>
+                </button>
+              </form>
+            </div>
+
+            {# Recent ACME log #}
+            {% if acme_logs %}
+            <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #f0f0f0;">
+              <div style="font-size:0.82rem;font-weight:600;color:#4a4a4a;margin-bottom:0.5rem;">Recent Activity</div>
+              {% for log in acme_logs %}
+              <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:#7a7a7a;padding:0.25rem 0;border-bottom:1px solid #fafafa;">
+                <span>{{ log.created_at|date:"M j, g:i A" }}</span>
+                <span style="font-family:monospace;color:#4a4a4a;">{{ log.event }}</span>
+                <span style="max-width:50%;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ log.detail|truncatechars:60 }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+          {% elif acme.acme_account_url %}
+            {# ── State 2: Configured, ready to issue ── #}
+            <div class="notification is-info is-light" style="padding:0.75rem 1rem;margin-bottom:1.25rem;border-radius:6px;font-size:0.85rem;">
+              <i class="fas fa-info-circle" style="margin-right:0.4rem;"></i>
+              ACME account registered. Ready to issue a certificate.
+            </div>
+
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Provider</div>
+              <div class="cert-detail-value">{{ acme.get_provider_display }}</div>
+            </div>
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Domain</div>
+              <div class="cert-detail-value" style="font-family:monospace;">{{ acme.domain }}</div>
+            </div>
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Challenge</div>
+              <div class="cert-detail-value">{{ acme.get_challenge_type_display }}</div>
+            </div>
+            <div class="cert-detail-row">
+              <div class="cert-detail-label">Directory</div>
+              <div class="cert-detail-value" style="font-family:monospace;font-size:0.78rem;word-break:break-all;">{{ acme.directory_url }}</div>
+            </div>
+
+            {% if acme.dns_challenge_pending %}
+            <div class="notification is-warning is-light" style="padding:0.75rem 1rem;margin-top:1.25rem;border-radius:6px;">
+              <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">
+                <i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i>
+                DNS Record Required
+              </div>
+              <div style="font-size:0.82rem;margin-bottom:0.75rem;">
+                Create this DNS TXT record at your DNS provider:
+              </div>
+              <div style="background:#f9f9f9;padding:0.75rem;border-radius:4px;margin-bottom:0.75rem;">
+                <div style="font-size:0.78rem;color:#7a7a7a;">Name:</div>
+                <div style="font-family:monospace;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">_acme-challenge.{{ acme.domain }}</div>
+                <div style="font-size:0.78rem;color:#7a7a7a;">Value:</div>
+                <div style="font-family:monospace;font-size:0.85rem;font-weight:600;word-break:break-all;">{{ acme.dns_txt_value }}</div>
+                <div style="font-size:0.78rem;color:#7a7a7a;margin-top:0.4rem;">TTL: 300 (or lowest available)</div>
+              </div>
+              <form method="post" action="{% url 'acme_dns_confirm' %}">
+                {% csrf_token %}
+                <button type="submit" class="button is-warning" style="font-weight:600;">
+                  <span class="icon"><i class="fas fa-check"></i></span>
+                  <span>I've Created the DNS Record</span>
+                </button>
+              </form>
+            </div>
+            {% else %}
+            <div style="margin-top:1.25rem;">
+              <form method="post" action="{% url 'acme_issue' %}">
+                {% csrf_token %}
+                <button type="submit" class="button is-primary is-fullwidth" style="font-weight:600;">
+                  <span class="icon"><i class="fas fa-certificate"></i></span>
+                  <span>Issue Certificate</span>
+                </button>
+              </form>
+            </div>
+            {% endif %}
+
+            {% if acme.last_renewal_error %}
+            <div class="notification is-danger is-light" style="padding:0.6rem 0.9rem;margin-top:1rem;font-size:0.82rem;">
+              <i class="fas fa-times-circle" style="margin-right:0.4rem;"></i>
+              <strong>Last error:</strong> {{ acme.last_renewal_error }}
+            </div>
+            {% endif %}
+
+          {% else %}
+            {# ── State 1: Not configured ── #}
+            <div class="info-box" style="margin-bottom:1.25rem;">
+              <div class="info-box-icon"><i class="fas fa-info-circle"></i></div>
+              <div style="font-size:0.82rem;">
+                Automate certificate issuance and renewal using the ACME protocol (RFC 8555).
+                Works with <strong>Let's Encrypt</strong> and internal enterprise certificate authorities
+                (Microsoft ADCS, Smallstep, Keyfactor, etc.).
+              </div>
+            </div>
+
+            <form method="post" action="{% url 'acme_configure' %}">
+              {% csrf_token %}
+
+              <div class="field" style="margin-bottom:1.25rem;">
+                <label class="label form-label">Provider</label>
+                <div class="control">
+                  <div class="select is-fullwidth">
+                    <select name="provider" id="acme-provider" onchange="onAcmeProviderChange()">
+                      <option value="letsencrypt">Let's Encrypt</option>
+                      <option value="letsencrypt_staging">Let's Encrypt (Staging)</option>
+                      <option value="custom">Custom / Internal CA</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field" id="acme-directory-field" style="margin-bottom:1.25rem;display:none;">
+                <label class="label form-label">Directory URL</label>
+                <div class="control">
+                  <input class="input" type="url" name="directory_url" id="acme-directory-url"
+                         placeholder="https://your-ca.example.com/acme/directory"
+                         style="font-family:monospace;font-size:0.85rem;">
+                </div>
+                <p class="field-hint">The ACME directory URL for your certificate authority.</p>
+              </div>
+
+              <div class="field" style="margin-bottom:1.25rem;">
+                <label class="label form-label">
+                  Domain (FQDN) <span style="color:#f14668;">*</span>
+                </label>
+                <div class="control">
+                  <input class="input" type="text" name="domain" required
+                         placeholder="proxmigrate.example.com"
+                         style="font-family:monospace;">
+                </div>
+                <p class="field-hint">The fully qualified domain name for the certificate.</p>
+              </div>
+
+              <div class="field" id="acme-email-field" style="margin-bottom:1.25rem;">
+                <label class="label form-label">
+                  Email <span id="acme-email-required" style="color:#f14668;">*</span>
+                </label>
+                <div class="control">
+                  <input class="input" type="email" name="email" id="acme-email"
+                         placeholder="admin@example.com">
+                </div>
+                <p class="field-hint">
+                  <span id="acme-email-hint">Required by Let's Encrypt for expiry notices.</span>
+                </p>
+              </div>
+
+              <div class="field" style="margin-bottom:1.25rem;">
+                <label class="label form-label">Challenge Type</label>
+                <div class="control">
+                  <label class="radio" style="font-size:0.85rem;display:block;margin-bottom:0.5rem;">
+                    <input type="radio" name="challenge_type" value="http-01" checked>
+                    <strong>HTTP-01</strong> &mdash; Port 80 must be open to the internet. Fully automatic renewal.
+                  </label>
+                  <label class="radio" style="font-size:0.85rem;display:block;">
+                    <input type="radio" name="challenge_type" value="dns-01">
+                    <strong>DNS-01</strong> &mdash; Works on private networks. Manual TXT record required for each renewal.
+                  </label>
+                </div>
+                <p class="field-hint" style="margin-top:0.5rem;">
+                  Some internal CAs may issue certificates without a challenge &mdash; if so, the challenge step will be skipped automatically.
+                </p>
+              </div>
+
+              {# Advanced section for internal CAs #}
+              <div class="form-section-header" style="cursor:pointer;margin-bottom:0;">
+                <span style="font-size:0.85rem;font-weight:600;color:#4a4a4a;">
+                  <i class="fas fa-chevron-down section-toggle-icon" style="margin-right:0.4rem;font-size:0.7rem;"></i>
+                  Advanced (Internal CA Options)
+                </span>
+              </div>
+              <div class="form-section-body" id="acme-advanced" style="padding-top:1rem;">
+                <div class="field" style="margin-bottom:1rem;">
+                  <label class="label form-label">CA Certificate (PEM)</label>
+                  <div class="control">
+                    <textarea class="textarea is-small" name="ca_bundle" rows="4"
+                      placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                      style="font-family:monospace;font-size:0.78rem;resize:vertical;"></textarea>
+                  </div>
+                  <p class="field-hint">PEM-encoded root certificate for verifying the ACME server's TLS. Only needed for internal CAs with private root certificates.</p>
+                </div>
+
+                <div class="field">
+                  <label class="checkbox" style="font-size:0.85rem;">
+                    <input type="checkbox" name="skip_tls_verify">
+                    Skip TLS verification
+                  </label>
+                  <p class="field-hint" style="margin-top:0.3rem;">
+                    <i class="fas fa-exclamation-triangle" style="color:#f59e0b;margin-right:0.3rem;"></i>
+                    Only use for testing. Disables TLS verification for the ACME server connection.
+                  </p>
+                </div>
+              </div>
+
+              <button type="submit" class="button is-primary is-fullwidth" style="font-weight:600;margin-top:1.25rem;">
+                <span class="icon"><i class="fas fa-user-plus"></i></span>
+                <span>Configure &amp; Register</span>
+              </button>
+            </form>
+
+          {% endif %}
+
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -540,6 +822,27 @@ function switchCertTab(name) {
     switchCertTab('upload-signed');
   });
 {% endif %}
+
+// ACME provider change handler
+function onAcmeProviderChange() {
+  var provider = document.getElementById('acme-provider').value;
+  var dirField = document.getElementById('acme-directory-field');
+  var emailRequired = document.getElementById('acme-email-required');
+  var emailHint = document.getElementById('acme-email-hint');
+  var emailInput = document.getElementById('acme-email');
+
+  if (provider === 'custom') {
+    dirField.style.display = '';
+    emailRequired.style.display = 'none';
+    emailInput.removeAttribute('required');
+    emailHint.textContent = 'Optional for internal CAs.';
+  } else {
+    dirField.style.display = 'none';
+    emailRequired.style.display = '';
+    emailInput.setAttribute('required', '');
+    emailHint.textContent = 'Required by Let\'s Encrypt for expiry notices.';
+  }
+}
 </script>
 
 {% endblock %}

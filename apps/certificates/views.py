@@ -4,31 +4,43 @@ import logging
 import os
 import re
 import subprocess
+from functools import wraps
 
+import redis
+from django.conf import settings
 from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
+from apps.certificates.helpers import CERT_DIR
+from apps.certificates.helpers import CERT_FILE
+from apps.certificates.helpers import CSR_KEY_FILE
+from apps.certificates.helpers import ENV_FILE
+from apps.certificates.helpers import KEY_FILE
+from apps.certificates.helpers import PENDING_CSR_FILE
+from apps.certificates.helpers import find_nginx_conf
+from apps.certificates.helpers import get_cert_info
+from apps.certificates.helpers import get_current_port
+from apps.certificates.helpers import get_pending_csr
+from apps.certificates.helpers import install_cert_and_key
+from apps.certificates.helpers import reload_nginx
+from apps.certificates.helpers import validate_cert_key_pair
+from apps.certificates.models import DIRECTORY_URLS
+from apps.certificates.models import AcmeConfig
+from apps.certificates.models import AcmeLog
+
 logger = logging.getLogger(__name__)
 
-CERT_DIR = "/opt/proxmigrate/certs"
-CERT_FILE = os.path.join(CERT_DIR, "proxmigrate.crt")
-KEY_FILE = os.path.join(CERT_DIR, "proxmigrate.key")
-CSR_KEY_FILE = os.path.join(CERT_DIR, "proxmigrate.csr.key")
-PENDING_CSR_FILE = os.path.join(CERT_DIR, "pending.csr")
-ENV_FILE = "/opt/proxmigrate/.env"
+REDIS_DNS_CONFIRM_KEY = "acme:dns_confirmed"
 
-NGINX_CONF_PATHS = [
-    "/etc/nginx/sites-available/proxmigrate",
-    "/etc/nginx/conf.d/proxmigrate.conf",
-]
 
+# ---------------------------------------------------------------------------
+# Decorators
+# ---------------------------------------------------------------------------
 
 def _staff_required(view_func):
-    from functools import wraps
-
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         if not request.user.is_authenticated:
@@ -40,123 +52,38 @@ def _staff_required(view_func):
     return _wrapped
 
 
-def _get_cert_info():
-    """Parse the current certificate and return a rich info dict, or None."""
-    if not os.path.exists(CERT_FILE):
-        return None
-    try:
-        from cryptography import x509
-        from cryptography.hazmat.backends import default_backend
-
-        with open(CERT_FILE, "rb") as f:
-            cert = x509.load_pem_x509_certificate(f.read(), default_backend())
-
-        san_parts = []
-        try:
-            san_ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
-            for name in san_ext.value:
-                if isinstance(name, x509.DNSName):
-                    san_parts.append(f"DNS:{name.value}")
-                elif isinstance(name, x509.IPAddress):
-                    san_parts.append(f"IP:{name.value}")
-        except x509.ExtensionNotFound:
-            pass
-
-        return {
-            "subject": cert.subject.rfc4514_string(),
-            "issuer": cert.issuer.rfc4514_string(),
-            "not_before": cert.not_valid_before_utc,
-            "not_after": cert.not_valid_after_utc,
-            "serial": format(cert.serial_number, "X"),
-            "san": ", ".join(san_parts) or "—",
-            "is_self_signed": cert.subject == cert.issuer,
-        }
-    except Exception as exc:
-        logger.warning("_get_cert_info: %s", exc)
-        return {"error": str(exc)}
-
-
-def _get_pending_csr():
-    """Return the pending CSR PEM text, or None."""
-    if not os.path.exists(PENDING_CSR_FILE):
-        return None
-    try:
-        with open(PENDING_CSR_FILE, "rb") as f:
-            return f.read().decode("utf-8")
-    except OSError:
-        return None
-
-
-def _find_nginx_conf():
-    for p in NGINX_CONF_PATHS:
-        if os.path.exists(p):
-            return p
-    return None
-
-
-def _get_current_port():
-    try:
-        if os.path.exists(ENV_FILE):
-            with open(ENV_FILE) as f:
-                for line in f:
-                    m = re.match(r"^WEB_PORT=(\d+)", line.strip())
-                    if m:
-                        return int(m.group(1))
-    except Exception:
-        pass
-    return 8443
-
-
-def _reload_nginx():
-    result = subprocess.run(
-        ["sudo", "nginx", "-s", "reload"],
-        capture_output=True, text=True, shell=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"nginx reload failed: {result.stderr.strip()}")
-
-
-def _install_cert_and_key(cert_content, key_content):
-    os.makedirs(CERT_DIR, exist_ok=True)
-    with open(CERT_FILE, "wb") as f:
-        f.write(cert_content)
-    with open(KEY_FILE, "wb") as f:
-        f.write(key_content)
-    os.chmod(KEY_FILE, 0o600)
-
-
-def _validate_cert_key_pair(cert_content, key_content):
-    """Raise ValueError if cert and key public keys do not match."""
-    from cryptography import x509
-    from cryptography.hazmat.backends import default_backend
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
-
-    cert = x509.load_pem_x509_certificate(cert_content, default_backend())
-    key = load_pem_private_key(key_content, password=None)
-
-    if cert.public_key().public_numbers() != key.public_key().public_numbers():
-        raise ValueError("Certificate and private key do not match.")
-
+# ---------------------------------------------------------------------------
+# Certificate settings (main page)
+# ---------------------------------------------------------------------------
 
 @_staff_required
 def cert_settings(request):
-    cert_info = _get_cert_info()
+    cert_info = get_cert_info()
 
     cert_days_remaining = None
     if cert_info and "not_after" in cert_info:
         delta = cert_info["not_after"] - datetime.datetime.now(datetime.timezone.utc)
         cert_days_remaining = delta.days
 
+    acme_config = AcmeConfig.get_config()
+    acme_logs = AcmeLog.objects.all()[:10]
+
     return render(request, "certificates/settings.html", {
         "cert_info": cert_info,
         "cert_days_remaining": cert_days_remaining,
-        "pending_csr": _get_pending_csr(),
+        "pending_csr": get_pending_csr(),
         "has_csr_key": os.path.exists(CSR_KEY_FILE),
-        "current_port": _get_current_port(),
+        "current_port": get_current_port(),
         "cert_file": CERT_FILE,
         "key_file": KEY_FILE,
+        "acme": acme_config,
+        "acme_logs": acme_logs,
     })
 
+
+# ---------------------------------------------------------------------------
+# CSR generation
+# ---------------------------------------------------------------------------
 
 @_staff_required
 @require_POST
@@ -174,7 +101,8 @@ def generate_csr(request):
 
     try:
         from cryptography import x509
-        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography.x509.oid import NameOID
 
@@ -191,7 +119,6 @@ def generate_csr(request):
             .subject_name(x509.Name(name_attrs))
         )
 
-        # Build SAN list — always include CN as a DNS SAN if it looks like a hostname
         san_list = []
         if cn and not cn.replace(".", "").replace("-", "").isdigit():
             san_list.append(x509.DNSName(cn))
@@ -209,7 +136,7 @@ def generate_csr(request):
 
         if san_list:
             builder = builder.add_extension(
-                x509.SubjectAlternativeName(san_list), critical=False
+                x509.SubjectAlternativeName(san_list), critical=False,
             )
 
         csr = builder.sign(key, hashes.SHA256())
@@ -231,7 +158,11 @@ def generate_csr(request):
             f.write(csr_pem)
 
         logger.info("CSR generated by %s for CN=%s", request.user, cn)
-        messages.success(request, f"CSR generated for {cn}. Submit it to your CA, then upload the signed certificate.")
+        messages.success(
+            request,
+            f"CSR generated for {cn}. Submit it to your CA, "
+            f"then upload the signed certificate.",
+        )
 
     except Exception as exc:
         logger.error("generate_csr: %s", exc, exc_info=True)
@@ -239,6 +170,10 @@ def generate_csr(request):
 
     return redirect("cert_settings")
 
+
+# ---------------------------------------------------------------------------
+# Certificate upload
+# ---------------------------------------------------------------------------
 
 @_staff_required
 @require_POST
@@ -263,8 +198,8 @@ def upload_signed_cert(request):
         with open(CSR_KEY_FILE, "rb") as f:
             key_content = f.read()
 
-        _validate_cert_key_pair(cert_content, key_content)
-        _install_cert_and_key(cert_content, key_content)
+        validate_cert_key_pair(cert_content, key_content)
+        install_cert_and_key(cert_content, key_content)
 
         for path in (CSR_KEY_FILE, PENDING_CSR_FILE):
             try:
@@ -275,10 +210,16 @@ def upload_signed_cert(request):
         logger.info("Signed certificate installed by %s", request.user)
 
         try:
-            _reload_nginx()
-            messages.success(request, "Certificate installed and nginx reloaded successfully.")
+            reload_nginx()
+            messages.success(
+                request,
+                "Certificate installed and nginx reloaded successfully.",
+            )
         except RuntimeError as exc:
-            messages.warning(request, f"Certificate installed but nginx reload failed: {exc}")
+            messages.warning(
+                request,
+                f"Certificate installed but nginx reload failed: {exc}",
+            )
 
     except ValueError as exc:
         messages.error(request, str(exc))
@@ -297,23 +238,31 @@ def upload_own_cert(request):
     key_file = request.FILES.get("key_file")
 
     if not cert_file or not key_file:
-        messages.error(request, "Both certificate and private key files are required.")
+        messages.error(
+            request, "Both certificate and private key files are required.",
+        )
         return redirect("cert_settings")
 
     try:
         cert_content = cert_file.read()
         key_content = key_file.read()
 
-        _validate_cert_key_pair(cert_content, key_content)
-        _install_cert_and_key(cert_content, key_content)
+        validate_cert_key_pair(cert_content, key_content)
+        install_cert_and_key(cert_content, key_content)
 
         logger.info("Certificate and key uploaded by %s", request.user)
 
         try:
-            _reload_nginx()
-            messages.success(request, "Certificate installed and nginx reloaded successfully.")
+            reload_nginx()
+            messages.success(
+                request,
+                "Certificate installed and nginx reloaded successfully.",
+            )
         except RuntimeError as exc:
-            messages.warning(request, f"Certificate installed but nginx reload failed: {exc}")
+            messages.warning(
+                request,
+                f"Certificate installed but nginx reload failed: {exc}",
+            )
 
     except ValueError as exc:
         messages.error(request, str(exc))
@@ -324,13 +273,18 @@ def upload_own_cert(request):
     return redirect("cert_settings")
 
 
+# ---------------------------------------------------------------------------
+# Self-signed certificate generation
+# ---------------------------------------------------------------------------
+
 @_staff_required
 @require_POST
 def generate_self_signed(request):
     """Generate a fresh self-signed certificate (10-year validity)."""
     try:
         from cryptography import x509
-        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography.x509.oid import NameOID
 
@@ -348,7 +302,9 @@ def generate_self_signed(request):
             .serial_number(x509.random_serial_number())
             .not_valid_before(now)
             .not_valid_after(now + datetime.timedelta(days=3650))
-            .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+            .add_extension(
+                x509.BasicConstraints(ca=False, path_length=None), critical=True,
+            )
             .sign(key, hashes.SHA256())
         )
 
@@ -359,14 +315,20 @@ def generate_self_signed(request):
             serialization.NoEncryption(),
         )
 
-        _install_cert_and_key(cert_pem, key_pem)
+        install_cert_and_key(cert_pem, key_pem)
         logger.info("Self-signed certificate regenerated by %s", request.user)
 
         try:
-            _reload_nginx()
-            messages.success(request, "New self-signed certificate generated and nginx reloaded.")
+            reload_nginx()
+            messages.success(
+                request,
+                "New self-signed certificate generated and nginx reloaded.",
+            )
         except RuntimeError as exc:
-            messages.warning(request, f"Certificate generated but nginx reload failed: {exc}")
+            messages.warning(
+                request,
+                f"Certificate generated but nginx reload failed: {exc}",
+            )
 
     except Exception as exc:
         logger.error("generate_self_signed: %s", exc, exc_info=True)
@@ -374,6 +336,10 @@ def generate_self_signed(request):
 
     return redirect("cert_settings")
 
+
+# ---------------------------------------------------------------------------
+# Port change
+# ---------------------------------------------------------------------------
 
 @_staff_required
 @require_POST
@@ -389,12 +355,12 @@ def change_port(request):
         messages.error(request, "Invalid port number. Must be between 1 and 65535.")
         return redirect("cert_settings")
 
-    current_port = _get_current_port()
+    current_port = get_current_port()
     if new_port == current_port:
         messages.info(request, f"Port is already {new_port}.")
         return redirect("cert_settings")
 
-    nginx_conf = _find_nginx_conf()
+    nginx_conf = find_nginx_conf()
     if not nginx_conf:
         messages.error(request, "Cannot find nginx configuration file.")
         return redirect("cert_settings")
@@ -403,45 +369,61 @@ def change_port(request):
         with open(nginx_conf) as f:
             original = f.read()
 
-        updated = re.sub(r"(listen\s+)\d+(\s+ssl)", rf"\g<1>{new_port}\2", original)
+        updated = re.sub(
+            r"(listen\s+)\d+(\s+ssl)", rf"\g<1>{new_port}\2", original,
+        )
 
         if updated == original:
-            messages.warning(request, "Could not locate the listen directive in the nginx config.")
+            messages.warning(
+                request,
+                "Could not locate the listen directive in the nginx config.",
+            )
             return redirect("cert_settings")
 
-        # Write via sudo tee
         write = subprocess.run(
             ["sudo", "tee", nginx_conf],
             input=updated.encode(),
             capture_output=True, shell=False,
         )
         if write.returncode != 0:
-            messages.error(request, f"Failed to write nginx config: {write.stderr.decode().strip()}")
+            messages.error(
+                request,
+                f"Failed to write nginx config: {write.stderr.decode().strip()}",
+            )
             return redirect("cert_settings")
 
-        # Validate — roll back on failure
         test = subprocess.run(
             ["sudo", "nginx", "-t"],
             capture_output=True, text=True, shell=False,
         )
         if test.returncode != 0:
-            subprocess.run(["sudo", "tee", nginx_conf],
-                           input=original.encode(), capture_output=True, shell=False)
-            messages.error(request, f"nginx config test failed (rolled back): {test.stderr.strip()}")
+            subprocess.run(
+                ["sudo", "tee", nginx_conf],
+                input=original.encode(), capture_output=True, shell=False,
+            )
+            messages.error(
+                request,
+                f"nginx config test failed (rolled back): {test.stderr.strip()}",
+            )
             return redirect("cert_settings")
 
-        # Update .env
         if os.path.exists(ENV_FILE):
             with open(ENV_FILE) as f:
                 env = f.read()
-            new_env = re.sub(r"^WEB_PORT=\d+", f"WEB_PORT={new_port}", env, flags=re.MULTILINE)
+            new_env = re.sub(
+                r"^WEB_PORT=\d+", f"WEB_PORT={new_port}", env,
+                flags=re.MULTILINE,
+            )
             if new_env == env:
                 new_env = env.rstrip("\n") + f"\nWEB_PORT={new_port}\n"
             with open(ENV_FILE, "w") as f:
                 f.write(new_env)
 
-        _reload_nginx()
-        logger.info("HTTPS port changed %d → %d by %s", current_port, new_port, request.user)
+        reload_nginx()
+        logger.info(
+            "HTTPS port changed %d -> %d by %s",
+            current_port, new_port, request.user,
+        )
 
         host = request.get_host().split(":")[0]
         return redirect(f"https://{host}:{new_port}/settings/certificates/")
@@ -450,3 +432,140 @@ def change_port(request):
         logger.error("change_port: %s", exc, exc_info=True)
         messages.error(request, f"Port change failed: {exc}")
         return redirect("cert_settings")
+
+
+# ---------------------------------------------------------------------------
+# ACME views
+# ---------------------------------------------------------------------------
+
+@_staff_required
+@require_POST
+def acme_configure(request):
+    """Save ACME settings and register an account with the CA."""
+    from apps.certificates import acme
+    from apps.certificates.tasks import _get_verify
+    from apps.certificates.tasks import _cleanup_ca_bundle
+
+    config = AcmeConfig.get_config()
+
+    provider = request.POST.get("provider", "letsencrypt")
+    domain = request.POST.get("domain", "").strip()
+    email = request.POST.get("email", "").strip()
+    challenge_type = request.POST.get("challenge_type", "http-01")
+    ca_bundle = request.POST.get("ca_bundle", "").strip()
+    skip_tls = request.POST.get("skip_tls_verify") == "on"
+
+    if not domain:
+        messages.error(request, "Domain is required.")
+        return redirect("cert_settings")
+
+    # Auto-fill directory URL from provider preset
+    if provider in DIRECTORY_URLS:
+        directory_url = DIRECTORY_URLS[provider]
+    else:
+        directory_url = request.POST.get("directory_url", "").strip()
+        if not directory_url:
+            messages.error(request, "Directory URL is required for custom providers.")
+            return redirect("cert_settings")
+
+    config.provider = provider
+    config.directory_url = directory_url
+    config.domain = domain
+    config.email = email
+    config.challenge_type = challenge_type
+    config.ca_bundle = ca_bundle
+    config.skip_tls_verify = skip_tls
+    config.save()
+
+    # Register ACME account
+    if not config.acme_account_key_pem:
+        key_pem = acme.generate_account_key()
+        config.acme_account_key_pem = key_pem.decode("utf-8")
+        config.save(update_fields=["acme_account_key_pem", "updated_at"])
+
+    verify = _get_verify(config)
+    try:
+        account_url = acme.register_account(
+            config.acme_account_key_pem,
+            config.directory_url,
+            email=config.email or None,
+            verify=verify,
+        )
+        config.acme_account_url = account_url
+        config.save(update_fields=["acme_account_url", "updated_at"])
+        AcmeLog.log("account_registered", f"Account: {account_url}")
+        AcmeLog.log("config_changed", f"Configured by {request.user}")
+        messages.success(
+            request,
+            f"ACME configured and account registered with "
+            f"{config.get_provider_display()}.",
+        )
+    except Exception as exc:
+        logger.error("ACME account registration failed: %s", exc)
+        messages.error(request, f"Account registration failed: {exc}")
+    finally:
+        _cleanup_ca_bundle(verify)
+
+    return redirect("cert_settings")
+
+
+@_staff_required
+@require_POST
+def acme_issue(request):
+    """Trigger ACME certificate issuance as a background task."""
+    from apps.certificates.tasks import issue_acme_certificate
+
+    config = AcmeConfig.get_config()
+    if not config.domain or not config.acme_account_url:
+        messages.error(request, "ACME is not configured. Configure it first.")
+        return redirect("cert_settings")
+
+    issue_acme_certificate.delay()
+    AcmeLog.log("renewal_triggered", f"Manual issuance by {request.user}")
+    messages.info(
+        request,
+        "Certificate issuance started. This page will update when complete.",
+    )
+    return redirect("cert_settings")
+
+
+@_staff_required
+def acme_status(request):
+    """HTMX endpoint: return current ACME status as an HTML partial."""
+    config = AcmeConfig.get_config()
+    cert_info = get_cert_info()
+
+    cert_days_remaining = None
+    if cert_info and "not_after" in cert_info:
+        delta = cert_info["not_after"] - datetime.datetime.now(datetime.timezone.utc)
+        cert_days_remaining = delta.days
+
+    return render(request, "certificates/partials/acme_status.html", {
+        "acme": config,
+        "cert_days_remaining": cert_days_remaining,
+        "acme_logs": AcmeLog.objects.all()[:5],
+    })
+
+
+@_staff_required
+@require_POST
+def acme_dns_confirm(request):
+    """User confirms the DNS TXT record has been created."""
+    broker_url = getattr(settings, "CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
+    r = redis.Redis.from_url(broker_url)
+    r.set(REDIS_DNS_CONFIRM_KEY, "1", ex=3600)
+
+    messages.info(request, "DNS confirmation sent. Waiting for validation...")
+    return redirect("cert_settings")
+
+
+@_staff_required
+@require_POST
+def acme_disable(request):
+    """Disable ACME automation. Keeps the current certificate in place."""
+    config = AcmeConfig.get_config()
+    config.is_enabled = False
+    config.save(update_fields=["is_enabled", "updated_at"])
+    AcmeLog.log("acme_disabled", f"Disabled by {request.user}")
+    messages.success(request, "ACME automation disabled. Current certificate is unchanged.")
+    return redirect("cert_settings")
