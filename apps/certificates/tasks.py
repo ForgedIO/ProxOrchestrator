@@ -86,8 +86,13 @@ def _cleanup_challenge(token=None):
 
 
 def _get_server_ips():
-    """Auto-discover this server's non-loopback IPv4 addresses."""
-    import socket
+    """Auto-discover this server's primary IPv4 addresses.
+
+    Only includes RFC 1918 private IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+    and public IPs. Excludes loopback, link-local, VPN/tunnel IPs (100.64-127.x.x
+    carrier-grade NAT range commonly used by Tailscale, ZeroTier, etc.).
+    """
+    import ipaddress
     import subprocess
 
     ips = []
@@ -98,21 +103,21 @@ def _get_server_ips():
         )
         if result.returncode == 0:
             for addr in result.stdout.strip().split():
-                # Only include IPv4, skip loopback and link-local
-                if ":" not in addr and not addr.startswith("127.") and not addr.startswith("169.254."):
+                if ":" in addr:
+                    continue  # skip IPv6
+                try:
+                    ip = ipaddress.ip_address(addr)
+                    # Skip loopback, link-local, and carrier-grade NAT (VPN tunnels)
+                    if ip.is_loopback or ip.is_link_local:
+                        continue
+                    # Skip 100.64.0.0/10 — CGNAT range used by Tailscale, ZeroTier
+                    if ipaddress.ip_address("100.64.0.0") <= ip <= ipaddress.ip_address("100.127.255.255"):
+                        continue
                     ips.append(addr)
+                except ValueError:
+                    continue
     except Exception:
         pass
-
-    if not ips:
-        # Fallback: get the IP from the default route
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ips.append(s.getsockname()[0])
-            s.close()
-        except Exception:
-            pass
 
     return ips
 
