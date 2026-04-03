@@ -143,6 +143,7 @@ def issue_acme_certificate(self):
         config.save(update_fields=["issuing_in_progress", "issuing_stage", "updated_at"])
 
     verify = _get_verify(config)
+    ip_sans = [ip.strip() for ip in config.ip_sans.split(",") if ip.strip()] if config.ip_sans else []
     token = None
 
     try:
@@ -205,7 +206,7 @@ def issue_acme_certificate(self):
             logger.info("Creating ACME order for %s", config.domain)
             order_url, order = acme.create_order(
                 key_pem, account_url, config.directory_url, config.domain,
-                verify=verify,
+                ip_sans=ip_sans, verify=verify,
             )
             AcmeLog.log("order_created", f"Order for {config.domain}")
 
@@ -295,7 +296,7 @@ def issue_acme_certificate(self):
         # Step 4: Generate CSR and finalize
         _set_stage("Generating CSR and finalizing order...")
         logger.info("Finalizing ACME order for %s", config.domain)
-        cert_key_pem, csr_der = acme.generate_csr(config.domain)
+        cert_key_pem, csr_der = acme.generate_csr(config.domain, ip_sans=ip_sans)
 
         finalize_url = order.get("finalize")
         if not finalize_url:
@@ -452,9 +453,10 @@ def _auto_trigger_dns01_renewal(config, days_remaining):
         key_pem = config.acme_account_key_pem
         account_url = config.acme_account_url
 
+        ip_sans = [ip.strip() for ip in config.ip_sans.split(",") if ip.strip()] if config.ip_sans else []
         order_url, order = acme.create_order(
             key_pem, account_url, config.directory_url, config.domain,
-            verify=verify,
+            ip_sans=ip_sans, verify=verify,
         )
 
         if order.get("status") in ("ready", "valid"):

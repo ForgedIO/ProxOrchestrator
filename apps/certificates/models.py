@@ -67,6 +67,11 @@ class AcmeConfig(models.Model):
         blank=True,
         help_text="Fully qualified domain name for the certificate.",
     )
+    ip_sans = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Comma-separated IP addresses to include as SANs.",
+    )
     email = models.EmailField(
         blank=True,
         help_text="Contact email for the ACME account. Required by Let's Encrypt.",

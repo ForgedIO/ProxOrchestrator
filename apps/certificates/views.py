@@ -492,6 +492,7 @@ def acme_configure(request):
     config.dns_api_token = request.POST.get("dns_api_token", "")
     config.dns_api_secret = request.POST.get("dns_api_secret", "")
     config.dns_zone_id = request.POST.get("dns_zone_id", "")
+    config.ip_sans = request.POST.get("ip_sans", "").strip()
 
     config.save()
 
@@ -633,9 +634,10 @@ def acme_issue(request):
         key_pem = config.acme_account_key_pem
         account_url = config.acme_account_url
 
+        ip_sans = [ip.strip() for ip in config.ip_sans.split(",") if ip.strip()] if config.ip_sans else []
         order_url, order = acme.create_order(
             key_pem, account_url, config.directory_url, config.domain,
-            verify=verify,
+            ip_sans=ip_sans, verify=verify,
         )
         AcmeLog.log("order_created", f"Order for {config.domain}")
 
@@ -784,6 +786,7 @@ def acme_reset(request):
     config.dns_api_token = ""
     config.dns_api_secret = ""
     config.dns_zone_id = ""
+    config.ip_sans = ""
     config.pending_order_url = ""
     config.pending_challenge_url = ""
     config.issuing_in_progress = False

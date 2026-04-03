@@ -259,13 +259,18 @@ def register_account(account_key_pem, directory_url, email=None, verify=True):
 # Certificate ordering
 # ---------------------------------------------------------------------------
 
-def create_order(account_key_pem, account_url, directory_url, domain, verify=True):
+def create_order(account_key_pem, account_url, directory_url, domain,
+                  ip_sans=None, verify=True):
     """Create a new certificate order. Returns (order_url, order_body)."""
     key = _load_key(account_key_pem)
     directory = get_directory(directory_url, verify=verify)
 
+    identifiers = [{"type": "dns", "value": domain}]
+    for ip in (ip_sans or []):
+        identifiers.append({"type": "ip", "value": ip.strip()})
+
     payload = {
-        "identifiers": [{"type": "dns", "value": domain}],
+        "identifiers": identifiers,
     }
 
     resp = _acme_post(
@@ -377,11 +382,13 @@ def poll_order(account_key_pem, account_url, order_url, verify=True,
 # Finalization & certificate download
 # ---------------------------------------------------------------------------
 
-def generate_csr(domain):
+def generate_csr(domain, ip_sans=None):
     """Generate a fresh RSA 2048 key + CSR for the given domain.
 
     Returns (private_key_pem, csr_der).
     """
+    import ipaddress as _ipaddress
+
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     key_pem = key.private_bytes(
         encoding=serialization.Encoding.PEM,
@@ -389,11 +396,18 @@ def generate_csr(domain):
         encryption_algorithm=serialization.NoEncryption(),
     )
 
+    san_list = [x509.DNSName(domain)]
+    for ip in (ip_sans or []):
+        try:
+            san_list.append(x509.IPAddress(_ipaddress.ip_address(ip.strip())))
+        except ValueError:
+            logger.warning("Skipping invalid IP SAN: %s", ip)
+
     csr = (
         x509.CertificateSigningRequestBuilder()
         .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, domain)]))
         .add_extension(
-            x509.SubjectAlternativeName([x509.DNSName(domain)]),
+            x509.SubjectAlternativeName(san_list),
             critical=False,
         )
         .sign(key, hashes.SHA256())

@@ -746,6 +746,16 @@
                 <p class="field-hint">The fully qualified domain name for the certificate.</p>
               </div>
 
+              <div class="field" style="margin-bottom:1.25rem;">
+                <label class="label form-label">IP SANs</label>
+                <div class="control">
+                  <input class="input" type="text" name="ip_sans"
+                         placeholder="192.168.1.100, 10.0.0.5"
+                         style="font-family:monospace;">
+                </div>
+                <p class="field-hint">Optional. Comma-separated IP addresses to include as Subject Alternative Names. Useful for internal CAs where the server is accessed by IP.</p>
+              </div>
+
               <div class="field" id="acme-email-field" style="margin-bottom:1.25rem;">
                 <label class="label form-label">
                   Email <span id="acme-email-required" style="color:#f14668;">*</span>
