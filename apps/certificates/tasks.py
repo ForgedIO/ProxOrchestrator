@@ -85,6 +85,38 @@ def _cleanup_challenge(token=None):
         logger.warning("nginx reload failed during challenge cleanup")
 
 
+def _get_server_ips():
+    """Auto-discover this server's non-loopback IPv4 addresses."""
+    import socket
+    import subprocess
+
+    ips = []
+    try:
+        result = subprocess.run(
+            ["hostname", "-I"],
+            capture_output=True, text=True, shell=False,
+        )
+        if result.returncode == 0:
+            for addr in result.stdout.strip().split():
+                # Only include IPv4, skip loopback and link-local
+                if ":" not in addr and not addr.startswith("127.") and not addr.startswith("169.254."):
+                    ips.append(addr)
+    except Exception:
+        pass
+
+    if not ips:
+        # Fallback: get the IP from the default route
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ips.append(s.getsockname()[0])
+            s.close()
+        except Exception:
+            pass
+
+    return ips
+
+
 def _get_verify(config):
     """Build the requests verify parameter from AcmeConfig."""
     if config.skip_tls_verify:
@@ -144,6 +176,16 @@ def issue_acme_certificate(self):
 
     verify = _get_verify(config)
     ip_sans = [ip.strip() for ip in config.ip_sans.split(",") if ip.strip()] if config.ip_sans else []
+
+    # Auto-discover server IPs for internal CAs
+    if config.provider == "custom":
+        discovered_ips = _get_server_ips()
+        for ip in discovered_ips:
+            if ip not in ip_sans:
+                ip_sans.append(ip)
+        if ip_sans:
+            logger.info("IP SANs for cert: %s", ", ".join(ip_sans))
+
     token = None
 
     try:
