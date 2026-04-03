@@ -1,6 +1,6 @@
 {% if acme.issuing_in_progress %}
   <div class="proxmigrate-card" style="margin-top:1.25rem;border-left:4px solid #3273dc;border-radius:0 10px 10px 0;"
-       hx-get="{% url 'acme_status' %}" hx-trigger="every 3s" hx-target="#acme-status-area" hx-swap="innerHTML">
+       hx-get="{% url 'acme_status' %}?poll=1" hx-trigger="every 3s" hx-target="#acme-status-area" hx-swap="innerHTML">
     <div class="card-header" style="background:#eff6ff;">
       <i class="fas fa-spinner fa-spin" style="color:#3273dc;"></i> Certificate Issuance In Progress
     </div>
@@ -12,7 +12,7 @@
     </div>
   </div>
 
-{% elif acme.is_enabled and acme.last_renewed_at %}
+{% elif is_poll and acme.is_enabled and acme.last_renewed_at %}
   <div class="proxmigrate-card" style="margin-top:1.25rem;border-left:4px solid #48c78e;border-radius:0 10px 10px 0;">
     <div class="card-header" style="background:#f0fdf4;">
       <i class="fas fa-check-circle" style="color:#48c78e;"></i> Certificate Issued Successfully

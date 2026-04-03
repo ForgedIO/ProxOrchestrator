@@ -718,6 +718,7 @@ def acme_status(request):
         "acme": config,
         "cert_days_remaining": cert_days_remaining,
         "acme_logs": AcmeLog.objects.all()[:5],
+        "is_poll": request.GET.get("poll") == "1",
     })
 
 
