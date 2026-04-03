@@ -599,6 +599,11 @@
               </form>
             </div>
 
+            {# Live status area for renewals — same as State 2 #}
+            <div id="acme-status-area">
+              {% include "certificates/partials/acme_status.html" %}
+            </div>
+
             {# Recent ACME log #}
             {% if acme_logs %}
             <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #f0f0f0;">
