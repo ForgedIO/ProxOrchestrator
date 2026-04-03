@@ -198,26 +198,34 @@ def _acme_post(key, url, payload, kid=None, verify=True, directory_url=None):
 
     body = _sign_request(key, url, payload, kid=kid, nonce=nonce)
     headers = {"Content-Type": "application/jose+json"}
-    resp = requests.post(url, json=body, headers=headers, timeout=DEFAULT_TIMEOUT, verify=verify)
 
-    # Retry once on badNonce
-    if resp.status_code == 400:
-        try:
-            err = resp.json()
-            if err.get("type", "").endswith("badNonce"):
-                new_nonce = resp.headers.get("Replay-Nonce")
-                if not new_nonce and directory:
-                    new_nonce = _get_nonce(directory, verify=verify)
-                if new_nonce:
-                    body = _sign_request(key, url, payload, kid=kid, nonce=new_nonce)
-                    resp = requests.post(
-                        url, json=body, headers=headers,
-                        timeout=DEFAULT_TIMEOUT, verify=verify,
-                    )
-        except (ValueError, KeyError):
-            pass
+    # Use a fresh session for each POST to avoid stale TLS connections
+    # (nginx reloads during challenge setup can break connection pools)
+    session = requests.Session()
+    session.verify = verify
+    try:
+        resp = session.post(url, json=body, headers=headers, timeout=DEFAULT_TIMEOUT)
 
-    return resp
+        # Retry once on badNonce
+        if resp.status_code == 400:
+            try:
+                err = resp.json()
+                if err.get("type", "").endswith("badNonce"):
+                    new_nonce = resp.headers.get("Replay-Nonce")
+                    if not new_nonce and directory:
+                        new_nonce = _get_nonce(directory, verify=verify)
+                    if new_nonce:
+                        body = _sign_request(key, url, payload, kid=kid, nonce=new_nonce)
+                        resp = session.post(
+                            url, json=body, headers=headers,
+                            timeout=DEFAULT_TIMEOUT,
+                        )
+            except (ValueError, KeyError):
+                pass
+
+        return resp
+    finally:
+        session.close()
 
 
 # ---------------------------------------------------------------------------
