@@ -146,10 +146,19 @@ def _sign_request(key, url, payload, kid=None, nonce=None):
 # ---------------------------------------------------------------------------
 
 _directory_cache = {}
+_active_directory_url = None
 
 
 def get_directory(directory_url, verify=True):
-    """Fetch the ACME directory JSON. Cached per URL."""
+    """Fetch the ACME directory JSON. Cached per URL.
+
+    Also stores the directory_url as the active directory so that
+    subsequent calls to _acme_post can always find it.
+    """
+    global _active_directory_url
+
+    _active_directory_url = directory_url
+
     if directory_url in _directory_cache:
         return _directory_cache[directory_url]
 
@@ -178,19 +187,14 @@ def _acme_post(key, url, payload, kid=None, verify=True, directory_url=None):
 
     Handles nonce refresh on badNonce errors (one retry).
     """
-    directory = get_directory(directory_url, verify=verify) if directory_url else None
-    nonce_url = directory_url or url
+    # Always use the directory to get nonces — some ACME servers (Smallstep)
+    # only provide nonces via the newNonce endpoint
+    dir_url = directory_url or _active_directory_url
+    if not dir_url:
+        raise AcmeError("No ACME directory URL available — call get_directory() first")
 
-    # Get a nonce — use the directory if available
-    if directory:
-        nonce = _get_nonce(directory, verify=verify)
-    else:
-        # Fall back to HEAD on the URL itself
-        nonce = requests.head(url, timeout=DEFAULT_TIMEOUT, verify=verify).headers.get(
-            "Replay-Nonce"
-        )
-        if not nonce:
-            raise AcmeError("Cannot obtain nonce")
+    directory = get_directory(dir_url, verify=verify)
+    nonce = _get_nonce(directory, verify=verify)
 
     body = _sign_request(key, url, payload, kid=kid, nonce=nonce)
     headers = {"Content-Type": "application/jose+json"}
