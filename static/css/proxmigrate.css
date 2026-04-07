@@ -257,8 +257,9 @@
 [data-theme='dark'] .table td[style*="color: #1a1a2e"],
 [data-theme='dark'] td[style*="color:#1a1a2e"] { color: var(--text-header) !important; }
 
-/* Inline code elements */
+/* Inline code and pre elements */
 [data-theme='dark'] code { background-color: var(--bg-main) !important; color: var(--text-semi) !important; }
+[data-theme='dark'] pre { background-color: var(--bg-main) !important; color: var(--text-main) !important; }
 
 /* Checkbox labels */
 [data-theme='dark'] .checkbox { color: var(--text-main) !important; }
