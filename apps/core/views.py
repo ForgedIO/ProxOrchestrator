@@ -116,6 +116,19 @@ def dashboard(request):
         combined = sorted(import_jobs + create_jobs + lxc_jobs + lxc_clone_jobs + snapshot_logs, key=lambda j: j.created_at, reverse=True)
         recent_jobs = combined[:8]
 
+    # Certificate expiry warning
+    cert_days_remaining = None
+    try:
+        from apps.certificates.helpers import CERT_FILE, get_cert_info
+
+        if os.path.exists(CERT_FILE):
+            cert_info = get_cert_info()
+            if cert_info and "not_after" in cert_info:
+                delta = cert_info["not_after"] - timezone.now()
+                cert_days_remaining = delta.days
+    except Exception:
+        pass
+
     context = {
         "wizard_complete": wizard_complete,
         "proxmox_host": proxmox_host,
@@ -128,6 +141,8 @@ def dashboard(request):
         "ct_total": ct_total,
         "ct_running": ct_running,
         "ct_stopped": ct_stopped,
+        "cert_days_remaining": cert_days_remaining,
+        "cert_expiry_warning": cert_days_remaining is not None and cert_days_remaining <= 30,
         "help_slug": "dashboard",
     }
     return render(request, "core/dashboard.html", context)

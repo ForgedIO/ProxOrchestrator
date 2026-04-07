@@ -36,6 +36,14 @@
 </div>
 {% endif %}
 
+{% if cert_expiry_warning %}
+<div class="notification is-warning" style="margin-bottom:1.5rem;padding:0.75rem 1rem;border-radius:8px;font-size:0.85rem;">
+  <i class="fas fa-exclamation-triangle" style="margin-right:0.4rem;"></i>
+  TLS certificate expires in <strong>{{ cert_days_remaining }} days</strong>.
+  <a href="{% url 'cert_settings' %}" style="margin-left:0.5rem;">Manage certificates &rarr;</a>
+</div>
+{% endif %}
+
 {% if wizard_complete %}
 
 {# ===== VM STAT CARDS ===== #}
