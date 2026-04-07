@@ -208,6 +208,58 @@
 [data-theme='dark'] .file-cta { background-color: var(--bg-main) !important; color: var(--text-main) !important; border-color: var(--border-main) !important; }
 [data-theme='dark'] .file-name { background-color: var(--bg-card) !important; color: var(--text-main) !important; border-color: var(--border-main) !important; }
 
+/* Card body text — catch inline hardcoded grays (#4a4a4a, #7a7a7a, #363636) */
+[data-theme='dark'] .card-body div,
+[data-theme='dark'] .card-body span,
+[data-theme='dark'] .card-body p,
+[data-theme='dark'] .card-body code,
+[data-theme='dark'] .card-body td { color: var(--text-main) !important; }
+[data-theme='dark'] .card-body .cert-detail-label { color: var(--text-muted) !important; }
+[data-theme='dark'] .card-body .field-hint { color: var(--text-muted) !important; }
+[data-theme='dark'] .card-body .info-box-icon { color: inherit !important; }
+
+/* Inline status/semantic colors — override hardcoded #257953, #cc0f35, etc. */
+[data-theme='dark'] .card-body [style*="color:#257953"],
+[data-theme='dark'] .card-body [style*="color: #257953"],
+[data-theme='dark'] .card-body [style*="color:#047857"] { color: var(--success-color) !important; }
+[data-theme='dark'] .card-body [style*="color:#cc0f35"],
+[data-theme='dark'] .card-body [style*="color: #cc0f35"] { color: var(--danger-color) !important; }
+[data-theme='dark'] .card-body [style*="color:#7a7a7a"],
+[data-theme='dark'] .card-body [style*="color: #7a7a7a"] { color: var(--text-muted) !important; }
+
+/* Card header backgrounds for status cards (ACME progress, DNS pending, etc.) */
+[data-theme='dark'] .card-header[style*="background:#eff6ff"],
+[data-theme='dark'] .card-header[style*="background:#f0fdf4"],
+[data-theme='dark'] .card-header[style*="background:#fef2f2"],
+[data-theme='dark'] .card-header[style*="background:#fffbeb"] { background-color: var(--bg-card) !important; }
+
+/* Inline code blocks inside card body */
+[data-theme='dark'] .card-body [style*="background:#f9f9f9"],
+[data-theme='dark'] .card-body [style*="background:#fafafa"] { background-color: var(--bg-main) !important; }
+[data-theme='dark'] .card-body [style*="border-bottom:1px solid #fafafa"],
+[data-theme='dark'] .card-body [style*="border-bottom:1px solid #f0f0f0"] { border-bottom-color: var(--border-main) !important; }
+[data-theme='dark'] .card-body [style*="border-top:1px solid #f0f0f0"] { border-top-color: var(--border-main) !important; }
+
+/* Dashboard job type badges — hardcoded light backgrounds */
+[data-theme='dark'] .card-body [style*="background:#f0f4ff"],
+[data-theme='dark'] .card-body [style*="background:#faf5ff"],
+[data-theme='dark'] .card-body [style*="background:#fff7ed"],
+[data-theme='dark'] .card-body [style*="background:#ecfdf5"],
+[data-theme='dark'] .card-body [style*="background:#f0fdf4"] { background-color: transparent !important; }
+
+/* Cancelled/queued status badges */
+[data-theme='dark'] .status-badge[style*="background:#f5f5f5"] { background-color: rgba(255,255,255,0.08) !important; color: var(--text-muted) !important; }
+[data-theme='dark'] .status-badge[style*="background:#fff8e1"] { background-color: var(--bg-warning-light) !important; color: var(--warning-color) !important; }
+[data-theme='dark'] .status-badge[style*="background:#fff3cd"] { background-color: var(--bg-warning-light) !important; color: var(--warning-color) !important; }
+
+/* Table body text — catch hardcoded colors in table rows */
+[data-theme='dark'] .table td[style*="color:#1a1a2e"],
+[data-theme='dark'] .table td[style*="color: #1a1a2e"],
+[data-theme='dark'] td[style*="color:#1a1a2e"] { color: var(--text-header) !important; }
+
+/* Checkbox labels */
+[data-theme='dark'] .checkbox { color: var(--text-main) !important; }
+
 /* --------------------------------------------------------------------------
    Sidebar Layout
    -------------------------------------------------------------------------- */
