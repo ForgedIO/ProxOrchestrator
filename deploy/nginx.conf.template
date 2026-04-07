@@ -2,6 +2,10 @@ upstream proxmigrate_app {
     server unix:/run/proxmigrate/gunicorn.sock fail_timeout=0;
 }
 
+upstream proxmigrate_ws {
+    server unix:/run/proxmigrate/daphne.sock fail_timeout=0;
+}
+
 server {
     listen {{ WEB_PORT }} ssl;
     server_name _;
@@ -32,6 +36,19 @@ server {
         internal;
     }
 
+    location /ws/ {
+        proxy_pass          http://proxmigrate_ws;
+        proxy_http_version  1.1;
+        proxy_set_header    Upgrade           $http_upgrade;
+        proxy_set_header    Connection        "upgrade";
+        proxy_set_header    Host              $http_host;
+        proxy_set_header    X-Real-IP         $remote_addr;
+        proxy_set_header    X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto $scheme;
+        proxy_read_timeout  86400s;
+        proxy_send_timeout  86400s;
+    }
+
     location / {
         proxy_pass          http://proxmigrate_app;
         proxy_set_header    Host              $http_host;
@@ -47,3 +64,6 @@ server {
     # VM console WebSocket proxy — target written by ProxMigrate after wizard completes
     include /opt/proxmigrate/deploy/proxmox_ws.conf;
 }
+
+# ACME HTTP-01 challenge server (managed by ProxMigrate — empty when not in use)
+include /opt/proxmigrate/deploy/acme-challenge.conf;

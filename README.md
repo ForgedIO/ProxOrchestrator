@@ -1,6 +1,6 @@
 # ProxMigrate
 
-**Version 1.1.2** — Build `2026-03-29.1`
+**Version 1.1.2** — Build `2026-04-08.1`
 
 > **To update an existing install:** `git pull origin main && sudo ./update.sh`
 
@@ -22,10 +22,13 @@ Made by **[Backup Assure](https://backupassure.io)**.
 - **Disk management** — add disks (with SSD emulation, TRIM, IO thread, cache, backup options), resize, detach, re-attach with reconfigured options, delete unused disks, CD-ROM/ISO management (browse by storage pool, mount, eject, upload new ISOs with progress bar)
 - **Network management** — connect/disconnect NICs per interface with inline toggle
 - **VM console** — full in-browser VNC console with clipboard support (paste text into any OS including IOS-XE and Linux terminals)
-- **LXC container management** — browse, start/stop/reboot, and view detailed config of existing LXC containers; create new containers from Proxmox templates with full network, storage, and credential configuration
+- **LXC container management** — browse, start/stop/reboot, delete, clone, export, and view detailed config of existing LXC containers; create new containers from Proxmox templates with full network, storage, and credential configuration; kebab action menu matching VM inventory UX
+- **Community Scripts** — browse 460+ pre-built apps (Docker, Pi-hole, Home Assistant, Plex, Grafana, and more) and deploy them as LXC containers with one click using the community-scripts project; interactive WebSocket terminal for real-time deployment output
 - **Setup wizard** — guided first-run setup for Proxmox API token, SSH key deployment, and environment discovery
 - **Authentication** — local accounts, LDAP, and Microsoft Entra ID (Azure AD); login with username or email address
 - **Password recovery** — self-service password reset via email (requires SMTP or Microsoft Graph API to be configured); local accounts only — LDAP/Entra ID users manage passwords in their directory
+- **ACME certificate automation** — automated TLS certificates from Let's Encrypt or internal CAs (Smallstep, etc.); DNS-01 (Cloudflare, Route53, and more) and HTTP-01 challenge types; auto-renewal at half certificate validity
+- **Dark mode** — system-wide dark theme with toggle in the header; CSS variable architecture for consistent styling across all pages
 - **Self-signed or custom TLS** — runs HTTPS on port 8443 by default (configurable)
 
 ### VM Inventory
@@ -258,7 +261,7 @@ The Windows installer does not include VirtIO drivers. ProxMigrate detects when 
 
 ## TLS Certificate Management
 
-ProxMigrate includes a full certificate management UI at **Settings → Certificates**. Three workflows are supported:
+ProxMigrate includes a full certificate management UI at **Settings → Certificates**. Four workflows are supported:
 
 ### Option 1 — Generate a CSR (recommended for CA-signed certs)
 
@@ -272,7 +275,15 @@ ProxMigrate includes a full certificate management UI at **Settings → Certific
 
 If you already have a cert/key pair, go to **Settings → Certificates → Upload Cert + Key** and upload both files (PEM format, unencrypted private key).
 
-### Option 3 — Generate a self-signed certificate
+### Option 3 — ACME automation (Let's Encrypt or internal CA)
+
+Go to **Settings → Certificates → ACME** and configure your ACME provider. Supports:
+- **Let's Encrypt** — automatic public certificates via DNS-01 or HTTP-01 challenge
+- **Internal CAs** — Smallstep, EJBCA, or any ACME-compatible CA with custom directory URL and optional CA bundle
+- **DNS-01 providers** — Cloudflare, Route53, and others with API key integration for fully automatic renewal
+- **Auto-renewal** — certificates renew automatically at half their validity period
+
+### Option 4 — Generate a self-signed certificate
 
 Go to **Settings → Certificates → Self-Signed** and click **Generate New Self-Signed Certificate**. This creates a 10-year self-signed cert. Browsers will show a security warning.
 
@@ -295,12 +306,13 @@ The default port is `8443`. To change it after install, go to **Settings → Cer
 
 ## Services
 
-ProxMigrate runs as four systemd services, all enabled for auto-start on reboot:
+ProxMigrate runs as five systemd services, all enabled for auto-start on reboot:
 
 | Service | Purpose |
 |---|---|
 | `proxmigrate-gunicorn` | Django application server |
 | `proxmigrate-celery` | Background task worker (conversions, imports) |
+| `proxmigrate-daphne` | ASGI server for WebSocket connections (community scripts terminal) |
 | `nginx` | HTTPS reverse proxy and WebSocket proxy |
 | `redis-server` | Task queue broker |
 
@@ -349,6 +361,16 @@ ProxMigrate handles template downloading, container creation, and optional auto-
 ---
 
 ## Changelog
+
+### v1.1.2 — 2026-04-08.1
+- **Community Scripts marketplace** — browse 460+ pre-built apps (Docker, Pi-hole, Home Assistant, Plex, Grafana, etc.) and deploy as LXC containers with one click; interactive WebSocket terminal for real-time deployment output; categorized browsing with search; catalog auto-update from community-scripts project
+- **ACME certificate automation** — automated TLS certificates from Let's Encrypt or internal CAs (Smallstep, etc.); DNS-01 challenge with DNS provider API integration (Cloudflare, Route53, and more); HTTP-01 challenge support; auto-renewal at half certificate validity; real-time issuance progress with HTMX polling; IP SAN support for internal CA certs
+- **Dark mode** — system-wide dark theme with CSS variable architecture; toggle in header with persistence; Bulma component overrides for tags, buttons, tabs, file inputs, and code blocks; attribute selectors catch hardcoded inline colors across all templates
+- **LXC kebab menu** — container inventory table now uses state-aware three-dot dropdown menu matching VM inventory UX; includes start/stop/shutdown/reboot, clone, export, delete, and details actions
+- **LXC container delete** — type-to-confirm CTID modal with async task polling, spinner, and auto-retry on storage errors; mirrored from VM delete UX
+- **Kebab menu overflow fix** — dropdown menus use fixed positioning to escape table overflow containers; auto-expand upward when near viewport bottom; close on scroll
+- **Certificate UX** — independent upload/paste PEM toggles for certificate and private key fields; paste PEM text directly instead of requiring file upload
+- **Dark mode fixes** — dashboard job text, email delivery method selection, SSH public key display, Save Token button, code/pre elements, Bulma light-variant components all visible in dark mode
 
 ### v1.1.2 — 2026-03-29.1
 - **VM delete** — type-to-confirm VMID modal, async task polling with spinner, auto-retry on storage errors (e.g. missing logical volumes)
@@ -440,6 +462,8 @@ ProxMigrate handles template downloading, container creation, and optional auto-
 - [x] LXC container management — inventory, detail, console, start/stop/reboot, creation wizard
 - [x] Password recovery — self-service password reset for local accounts via email, login with email address
 - [x] MFA — TOTP (authenticator app) for local and LDAP accounts, recovery codes, email bypass, admin enforcement
+- [x] ACME certificate automation — Let's Encrypt and internal CAs, DNS-01/HTTP-01 challenges, auto-renewal
+- [x] Dark mode — system-wide theme toggle with CSS variable architecture
 
 ### Phase 2 — VM Export & Portable Packages
 Export a complete VM (configuration + all disks) as a `.px` package — a tar.gz archive with a JSON manifest — that can be imported on any ProxMigrate server to recreate the VM identically.
@@ -521,10 +545,16 @@ sudo systemctl restart proxmigrate-gunicorn proxmigrate-celery
 - [x] Kebab menu — state-aware dropdown with Export VM in inventory table
 - [x] Stuck VM detection — "Not Responding" warning after timeout
 
+### Community Scripts (complete)
+- [x] Community Scripts marketplace — browse 460+ pre-built apps and deploy as LXC containers
+- [x] Interactive WebSocket terminal for real-time deployment output
+- [x] Categorized browsing with search and catalog auto-update
+
 ### LXC Management Enhancements
+- [x] LXC kebab menu — state-aware dropdown with clone, export, delete in container inventory table
+- [x] LXC container delete — type-to-confirm CTID modal with async task polling
 - [ ] LXC settings editors — CPU, memory, network configuration from detail page
 - [ ] LXC disk management — add, resize, detach disks from container detail page
-- [ ] LXC kebab menu — state-aware dropdown with export in container inventory table
 - [ ] LXC NIC management — connect/disconnect network interfaces
 
 ### Phase 3 — Proxmox Monitoring & Alerting
@@ -539,11 +569,11 @@ Turn ProxMigrate into a comprehensive Proxmox observability platform.
 
 ## Architecture
 
-- **Backend:** Django 4.2 + Gunicorn
+- **Backend:** Django 4.2 + Gunicorn (HTTP) + Daphne (WebSocket/ASGI)
 - **Task queue:** Celery + Redis
 - **Proxmox integration:** REST API (port 8006) for all reads and VM actions; SSH/SFTP via `paramiko` for disk transfers and `qm importdisk`
-- **Frontend:** Django templates + HTMX (no JavaScript framework required)
-- **Proxy:** nginx handles TLS termination and WebSocket proxying for the VM console
+- **Frontend:** Django templates + HTMX + xterm.js (no JavaScript framework required)
+- **Proxy:** nginx handles TLS termination and WebSocket proxying for consoles and community script terminals
 - **Database:** SQLite (self-contained, no separate database server needed)
 
 ## License

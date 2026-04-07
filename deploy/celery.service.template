@@ -12,7 +12,9 @@ EnvironmentFile=/opt/proxmigrate/.env
 ExecStart=/opt/proxmigrate/venv/bin/celery \
     -A proxmigrate worker \
     -l info \
-    --concurrency=4
+    --concurrency=4 \
+    -B \
+    --schedule=/opt/proxmigrate/celerybeat-schedule
 Restart=always
 RestartSec=10
 KillSignal=SIGTERM

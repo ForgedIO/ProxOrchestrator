@@ -42,7 +42,7 @@ def dashboard(request):
     from apps.wizard.models import ProxmoxConfig
     from apps.importer.models import ImportJob
     from apps.vmcreator.models import VmCreateJob
-    from apps.lxc.models import LxcCloneJob, LxcCreateJob, LxcSnapshotLog
+    from apps.lxc.models import LxcCloneJob, LxcCreateJob, LxcSnapshotLog, CommunityScriptJob
     from apps.proxmox.api import ProxmoxAPIError
 
     config = ProxmoxConfig.objects.first()
@@ -113,8 +113,27 @@ def dashboard(request):
             j.display_name = f"{snap_action_labels.get(j.action, j.action)} \u2014 {j.snapname}"
             j.vm_name = j.ct_name
 
-        combined = sorted(import_jobs + create_jobs + lxc_jobs + lxc_clone_jobs + snapshot_logs, key=lambda j: j.created_at, reverse=True)
+        community_jobs = list(CommunityScriptJob.objects.order_by("-created_at")[:5])
+        for j in community_jobs:
+            j.job_type = "community_script"
+            j.display_name = j.app_name
+            j.vm_name = j.app_name
+
+        combined = sorted(import_jobs + create_jobs + lxc_jobs + lxc_clone_jobs + snapshot_logs + community_jobs, key=lambda j: j.created_at, reverse=True)
         recent_jobs = combined[:8]
+
+    # Certificate expiry warning
+    cert_days_remaining = None
+    try:
+        from apps.certificates.helpers import CERT_FILE, get_cert_info
+
+        if os.path.exists(CERT_FILE):
+            cert_info = get_cert_info()
+            if cert_info and "not_after" in cert_info:
+                delta = cert_info["not_after"] - timezone.now()
+                cert_days_remaining = delta.days
+    except Exception:
+        pass
 
     context = {
         "wizard_complete": wizard_complete,
@@ -128,6 +147,8 @@ def dashboard(request):
         "ct_total": ct_total,
         "ct_running": ct_running,
         "ct_stopped": ct_stopped,
+        "cert_days_remaining": cert_days_remaining,
+        "cert_expiry_warning": cert_days_remaining is not None and cert_days_remaining <= 30,
         "help_slug": "dashboard",
     }
     return render(request, "core/dashboard.html", context)

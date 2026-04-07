@@ -153,6 +153,8 @@ case "${PKG_MANAGER}" in
             libsasl2-dev
             libssl-dev
             nginx
+            nodejs
+            npm
             redis-server
             openssl
             openssh-client
@@ -195,6 +197,8 @@ case "${PKG_MANAGER}" in
             cyrus-sasl-devel \
             openssl-devel \
             nginx \
+            nodejs \
+            npm \
             redis \
             openssl \
             openssh-clients \
@@ -221,6 +225,8 @@ case "${PKG_MANAGER}" in
             cyrus-sasl-devel \
             libopenssl-devel \
             nginx \
+            nodejs \
+            npm \
             redis \
             openssl \
             openssh \
@@ -290,14 +296,22 @@ else
     sudo -u "${APP_USER}" "${PIP}" install --quiet -r "${APP_HOME}/requirements.txt"
 fi
 
+echo "==> Installing frontend dependencies..."
+if command -v npm &>/dev/null; then
+    sudo -u "${APP_USER}" bash -c "cd ${APP_HOME} && npm install --omit=dev 2>&1 | tail -1"
+else
+    echo "    WARN: npm not found — skipping frontend asset install"
+fi
+
 # ---------------------------------------------------------------------------
 # Directories
 # ---------------------------------------------------------------------------
 
 echo "==> Creating runtime directories..."
 UPLOAD_ROOT="${APP_HOME}/uploads"
-mkdir -p "${UPLOAD_ROOT}" "${CERTS_DIR}" "${SSH_DIR}"
-chown -R "${APP_USER}:${APP_USER}" "${UPLOAD_ROOT}" "${CERTS_DIR}" "${SSH_DIR}"
+ACME_CHALLENGE_DIR="${CERTS_DIR}/acme-challenge"
+mkdir -p "${UPLOAD_ROOT}" "${CERTS_DIR}" "${ACME_CHALLENGE_DIR}" "${SSH_DIR}"
+chown -R "${APP_USER}:${APP_USER}" "${UPLOAD_ROOT}" "${CERTS_DIR}" "${ACME_CHALLENGE_DIR}" "${SSH_DIR}"
 chmod 700 "${SSH_DIR}"
 
 # ---------------------------------------------------------------------------
@@ -436,6 +450,7 @@ ${APP_USER} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload
 ${APP_USER} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
 ${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/proxmigrate
 ${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/conf.d/proxmigrate.conf
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /opt/proxmigrate/deploy/acme-challenge.conf
 EOF
 chmod 440 "${SUDOERS_FILE}"
 echo "    Sudoers rule written: ${SUDOERS_FILE}"
@@ -482,9 +497,15 @@ echo "==> Installing systemd service units..."
 
 GUNICORN_SERVICE="/etc/systemd/system/proxmigrate-gunicorn.service"
 CELERY_SERVICE="/etc/systemd/system/proxmigrate-celery.service"
+DAPHNE_SERVICE="/etc/systemd/system/proxmigrate-daphne.service"
 
 cp "${APP_HOME}/deploy/gunicorn.service.template" "${GUNICORN_SERVICE}"
 cp "${APP_HOME}/deploy/celery.service.template" "${CELERY_SERVICE}"
+cp "${APP_HOME}/deploy/daphne.service.template" "${DAPHNE_SERVICE}"
+
+# Create empty ACME challenge config (populated by ACME automation when needed)
+touch "${APP_HOME}/deploy/acme-challenge.conf"
+chown "${APP_USER}:${APP_USER}" "${APP_HOME}/deploy/acme-challenge.conf"
 
 # Create RuntimeDirectory parent so systemd tmpfiles doesn't complain
 mkdir -p /run/proxmigrate
@@ -629,7 +650,7 @@ fi
 echo "==> Enabling and starting services..."
 systemctl daemon-reload
 
-for SVC in "${REDIS_SVC}" nginx proxmigrate-gunicorn proxmigrate-celery; do
+for SVC in "${REDIS_SVC}" nginx proxmigrate-gunicorn proxmigrate-celery proxmigrate-daphne; do
     systemctl enable "${SVC}" 2>/dev/null || true
     systemctl restart "${SVC}" 2>/dev/null || systemctl start "${SVC}" 2>/dev/null || true
     echo "    ${SVC}: $(systemctl is-active "${SVC}" 2>/dev/null || echo 'unknown')"
