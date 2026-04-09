@@ -253,8 +253,23 @@ for p in /etc/nginx/sites-enabled/proxorchestrator /etc/nginx/sites-available/pr
 done
 
 # ---------------------------------------------------------------------------
-# Fix stale systemd service files that still reference old proxmigrate paths
+# Clean up old proxmigrate services if they exist
 # ---------------------------------------------------------------------------
+OLD_SVCS_FOUND=false
+for old_svc in proxmigrate-gunicorn proxmigrate-celery proxmigrate-daphne; do
+    if [[ -f "/etc/systemd/system/${old_svc}.service" ]]; then
+        OLD_SVCS_FOUND=true
+        systemctl stop "${old_svc}" 2>/dev/null || true
+        systemctl disable "${old_svc}" 2>/dev/null || true
+        rm -f "/etc/systemd/system/${old_svc}.service"
+    fi
+done
+if [[ "${OLD_SVCS_FOUND}" == "true" ]]; then
+    systemctl daemon-reload
+    echo "==> Removed old proxmigrate service files."
+fi
+
+# Fix stale systemd service files that still reference old proxmigrate paths
 GUNICORN_SVC="/etc/systemd/system/proxorchestrator-gunicorn.service"
 if [[ -f "${GUNICORN_SVC}" ]] && grep -q "proxmigrate" "${GUNICORN_SVC}" 2>/dev/null; then
     echo "==> Fixing stale systemd service files (still reference proxmigrate)..."
