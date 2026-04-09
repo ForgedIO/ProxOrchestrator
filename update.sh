@@ -21,6 +21,210 @@ if [[ "${EUID}" -ne 0 ]]; then
     exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Migration: proxmigrate → proxorchestrator
+# ---------------------------------------------------------------------------
+OLD_HOME="/opt/proxmigrate"
+OLD_USER="proxmigrate"
+OLD_LOG="/var/log/proxmigrate"
+
+if [[ -d "${OLD_HOME}" && ! -d "${APP_HOME}" ]]; then
+    echo ""
+    echo "============================================================"
+    echo "  Migrating ProxMigrate → ProxOrchestrator"
+    echo "============================================================"
+    echo ""
+
+    # 1. Create new system user
+    echo "==> Creating system user '${APP_USER}'..."
+    if ! id "${APP_USER}" &>/dev/null; then
+        useradd --system --home "${APP_HOME}" --shell /sbin/nologin "${APP_USER}"
+        echo "    User '${APP_USER}' created."
+    fi
+
+    # 2. Copy application data to new path
+    echo "==> Copying ${OLD_HOME} → ${APP_HOME}..."
+    cp -a "${OLD_HOME}" "${APP_HOME}"
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}"
+    echo "    Application data copied."
+
+    # 3. Rename certificate files
+    echo "==> Renaming certificate files..."
+    CERT_DIR="${APP_HOME}/certs"
+    for ext in crt key; do
+        if [[ -f "${CERT_DIR}/proxmigrate.${ext}" ]]; then
+            mv "${CERT_DIR}/proxmigrate.${ext}" "${CERT_DIR}/proxorchestrator.${ext}"
+            echo "    proxmigrate.${ext} → proxorchestrator.${ext}"
+        fi
+    done
+    if [[ -f "${CERT_DIR}/proxmigrate.csr.key" ]]; then
+        mv "${CERT_DIR}/proxmigrate.csr.key" "${CERT_DIR}/proxorchestrator.csr.key"
+        echo "    proxmigrate.csr.key → proxorchestrator.csr.key"
+    fi
+
+    # 4. Update .env file paths
+    echo "==> Updating .env file..."
+    ENV_FILE="${APP_HOME}/.env"
+    if [[ -f "${ENV_FILE}" ]]; then
+        sed -i 's|/opt/proxmigrate|/opt/proxorchestrator|g' "${ENV_FILE}"
+        chown "${APP_USER}:${APP_USER}" "${ENV_FILE}"
+        echo "    .env paths updated."
+    fi
+
+    # 5. Create new log and runtime directories
+    echo "==> Creating directories..."
+    mkdir -p /var/log/proxorchestrator /run/proxorchestrator
+    chown "${APP_USER}:${APP_USER}" /var/log/proxorchestrator /run/proxorchestrator
+    # Copy existing logs if present
+    if [[ -d "${OLD_LOG}" ]]; then
+        cp -a "${OLD_LOG}"/* /var/log/proxorchestrator/ 2>/dev/null || true
+        chown -R "${APP_USER}:${APP_USER}" /var/log/proxorchestrator
+    fi
+
+    # 6. Stop old services
+    echo "==> Stopping old services..."
+    for svc in proxmigrate-gunicorn proxmigrate-celery proxmigrate-daphne; do
+        systemctl stop "${svc}" 2>/dev/null || true
+        systemctl disable "${svc}" 2>/dev/null || true
+    done
+
+    # 7. Remove old service files
+    rm -f /etc/systemd/system/proxmigrate-gunicorn.service
+    rm -f /etc/systemd/system/proxmigrate-celery.service
+    rm -f /etc/systemd/system/proxmigrate-daphne.service
+
+    # 8. Install new nginx config
+    echo "==> Updating nginx configuration..."
+    # Remove old nginx config
+    rm -f /etc/nginx/sites-enabled/proxmigrate
+    rm -f /etc/nginx/sites-available/proxmigrate
+    rm -f /etc/nginx/conf.d/proxmigrate.conf
+
+    # The new nginx config will be installed by the normal update flow below
+    # via the deploy/nginx.conf.template
+
+    # Detect nginx config style
+    if [[ -d "/etc/nginx/sites-available" ]]; then
+        NGINX_CONF_FILE="/etc/nginx/sites-available/proxorchestrator"
+        sed \
+            -e "s|{{ WEB_PORT }}|$(grep -oP 'WEB_PORT=\K.*' "${ENV_FILE}" 2>/dev/null || echo 8443)|g" \
+            -e "s|{{ UPLOAD_ROOT }}|${APP_HOME}/uploads|g" \
+            "${APP_HOME}/deploy/nginx.conf.template" \
+            > "${NGINX_CONF_FILE}"
+        ln -sf "${NGINX_CONF_FILE}" /etc/nginx/sites-enabled/proxorchestrator
+    else
+        NGINX_CONF_FILE="/etc/nginx/conf.d/proxorchestrator.conf"
+        sed \
+            -e "s|{{ WEB_PORT }}|$(grep -oP 'WEB_PORT=\K.*' "${ENV_FILE}" 2>/dev/null || echo 8443)|g" \
+            -e "s|{{ UPLOAD_ROOT }}|${APP_HOME}/uploads|g" \
+            "${APP_HOME}/deploy/nginx.conf.template" \
+            > "${NGINX_CONF_FILE}"
+    fi
+    nginx -t 2>/dev/null && echo "    Nginx config valid."
+
+    # 9. Update sudoers
+    echo "==> Updating sudoers rules..."
+    rm -f /etc/sudoers.d/proxmigrate-nginx
+    cat > /etc/sudoers.d/proxorchestrator-nginx <<SUDOERS
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/proxorchestrator
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/conf.d/proxorchestrator.conf
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /opt/proxorchestrator/deploy/acme-challenge.conf
+SUDOERS
+    chmod 440 /etc/sudoers.d/proxorchestrator-nginx
+
+    # 10. Rename the old Django project directory inside the app
+    if [[ -d "${APP_HOME}/proxmigrate" && ! -d "${APP_HOME}/proxorchestrator" ]]; then
+        mv "${APP_HOME}/proxmigrate" "${APP_HOME}/proxorchestrator"
+        echo "    Django project directory renamed."
+    fi
+
+    # 11. Update internal references in copied Python/config files
+    echo "==> Updating internal references..."
+    # Settings module references
+    find "${APP_HOME}" -name "*.py" -exec sed -i \
+        -e 's|proxmigrate\.settings|proxorchestrator.settings|g' \
+        -e 's|proxmigrate\.wsgi|proxorchestrator.wsgi|g' \
+        -e 's|proxmigrate\.asgi|proxorchestrator.asgi|g' \
+        -e 's|proxmigrate\.urls|proxorchestrator.urls|g' \
+        -e 's|proxmigrate\.celery|proxorchestrator.celery|g' \
+        -e 's|Celery("proxmigrate")|Celery("proxorchestrator")|g' \
+        -e 's|/opt/proxmigrate|/opt/proxorchestrator|g' \
+        -e 's|/var/tmp/proxmigrate|/var/tmp/proxorchestrator|g' \
+        -e 's|/var/log/proxmigrate|/var/log/proxorchestrator|g' \
+        -e 's|proxmigrate\.crt|proxorchestrator.crt|g' \
+        -e 's|proxmigrate\.key|proxorchestrator.key|g' \
+        -e 's|proxmigrate\.csr\.key|proxorchestrator.csr.key|g' \
+        -e 's|proxmigrate\.local|proxorchestrator.local|g' \
+        -e 's|sites-available/proxmigrate|sites-available/proxorchestrator|g' \
+        -e 's|proxmigrate\.conf|proxorchestrator.conf|g' \
+        {} + 2>/dev/null || true
+
+    # Rename CSS file if needed
+    if [[ -f "${APP_HOME}/static/css/proxmigrate.css" && ! -f "${APP_HOME}/static/css/proxorchestrator.css" ]]; then
+        mv "${APP_HOME}/static/css/proxmigrate.css" "${APP_HOME}/static/css/proxorchestrator.css"
+    fi
+
+    # Update template references to CSS file
+    find "${APP_HOME}/templates" -name "*.html" -exec sed -i \
+        -e 's|proxmigrate\.css|proxorchestrator.css|g' \
+        -e 's|proxmigrate-card|proxorchestrator-card|g' \
+        -e 's|proxmigrate-sidebar|proxorchestrator-sidebar|g' \
+        -e 's|proxmigrate_theme|proxorchestrator_theme|g' \
+        -e 's|ProxMigrate|ProxOrchestrator|g' \
+        -e 's|/opt/proxmigrate|/opt/proxorchestrator|g' \
+        {} + 2>/dev/null || true
+
+    # Update CSS class names
+    if [[ -f "${APP_HOME}/static/css/proxorchestrator.css" ]]; then
+        sed -i \
+            -e 's|proxmigrate-card|proxorchestrator-card|g' \
+            -e 's|proxmigrate-sidebar|proxorchestrator-sidebar|g' \
+            -e 's|ProxMigrate|ProxOrchestrator|g' \
+            "${APP_HOME}/static/css/proxorchestrator.css"
+    fi
+
+    # Update help files
+    find "${APP_HOME}/help" -name "*.md" -exec sed -i \
+        -e 's|ProxMigrate|ProxOrchestrator|g' \
+        -e 's|/opt/proxmigrate|/opt/proxorchestrator|g' \
+        -e 's|proxmigrate-gunicorn|proxorchestrator-gunicorn|g' \
+        -e 's|proxmigrate-celery|proxorchestrator-celery|g' \
+        -e 's|proxmigrate-daphne|proxorchestrator-daphne|g' \
+        {} + 2>/dev/null || true
+
+    # Update email templates
+    find "${APP_HOME}/templates" -name "*.txt" -exec sed -i \
+        -e 's|ProxMigrate|ProxOrchestrator|g' \
+        {} + 2>/dev/null || true
+
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}"
+
+    # 12. Install new systemd service files
+    echo "==> Installing new service files..."
+    cp "${APP_HOME}/deploy/gunicorn.service.template" /etc/systemd/system/proxorchestrator-gunicorn.service
+    cp "${APP_HOME}/deploy/celery.service.template" /etc/systemd/system/proxorchestrator-celery.service
+    cp "${APP_HOME}/deploy/daphne.service.template" /etc/systemd/system/proxorchestrator-daphne.service
+    systemctl daemon-reload
+    for svc in proxorchestrator-gunicorn proxorchestrator-celery proxorchestrator-daphne; do
+        systemctl enable "${svc}" 2>/dev/null || true
+    done
+    echo "    Service files installed and enabled."
+
+    # 13. Reload nginx with new config
+    nginx -t 2>/dev/null && systemctl reload nginx && echo "    Nginx reloaded."
+
+    echo ""
+    echo "  Migration complete. Old installation preserved at ${OLD_HOME}."
+    echo "  Once you verify everything works, you can remove it:"
+    echo "    sudo rm -rf ${OLD_HOME}"
+    echo ""
+    echo "============================================================"
+    echo ""
+fi
+
+# If the new path already exists, proceed with the normal update
 echo "==> Copying application files to ${APP_HOME}..."
 COPY_DIRS=(apps proxorchestrator templates static help deploy scripts)
 for d in "${COPY_DIRS[@]}"; do

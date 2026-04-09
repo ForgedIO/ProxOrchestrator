@@ -77,7 +77,7 @@ echo ""
 
 echo "==> Stopping ProxOrchestrator services..."
 
-for SVC in proxorchestrator-gunicorn proxorchestrator-celery; do
+for SVC in proxorchestrator-gunicorn proxorchestrator-celery proxorchestrator-daphne; do
     if systemctl is-active "${SVC}" &>/dev/null; then
         systemctl stop "${SVC}"
         echo "    Stopped: ${SVC}"
@@ -98,7 +98,19 @@ systemctl daemon-reload
 # Remove Nginx config
 # ---------------------------------------------------------------------------
 
+echo "==> Removing sudoers rules..."
+rm -f /etc/sudoers.d/proxorchestrator-nginx
+rm -f /etc/sudoers.d/proxmigrate-nginx
+echo "    Sudoers rules removed."
+
 echo "==> Removing Nginx configuration..."
+
+# Remove both old and new naming
+for name in proxorchestrator proxmigrate; do
+    rm -f "/etc/nginx/sites-enabled/${name}"
+    rm -f "/etc/nginx/sites-available/${name}"
+    rm -f "/etc/nginx/conf.d/${name}.conf"
+done
 
 NGINX_AVAILABLE="/etc/nginx/sites-available/proxorchestrator"
 NGINX_ENABLED="/etc/nginx/sites-enabled/proxorchestrator"
@@ -133,23 +145,35 @@ fi
 if [[ "${KEEP_DATA}" == "false" ]]; then
     echo "==> Removing application data..."
 
-    if [[ -d "${APP_HOME}" ]]; then
-        rm -rf "${APP_HOME}"
-        echo "    Removed: ${APP_HOME}"
-    fi
+    for dir in "${APP_HOME}" /opt/proxmigrate; do
+        if [[ -d "${dir}" ]]; then
+            rm -rf "${dir}"
+            echo "    Removed: ${dir}"
+        fi
+    done
 
-    if [[ -d "${LOG_DIR}" ]]; then
-        rm -rf "${LOG_DIR}"
-        echo "    Removed: ${LOG_DIR}"
-    fi
+    for dir in "${LOG_DIR}" /var/log/proxmigrate; do
+        if [[ -d "${dir}" ]]; then
+            rm -rf "${dir}"
+            echo "    Removed: ${dir}"
+        fi
+    done
 
-    echo "==> Removing system user '${APP_USER}'..."
-    if id "${APP_USER}" &>/dev/null; then
-        userdel "${APP_USER}"
-        echo "    User '${APP_USER}' removed."
-    else
-        echo "    User '${APP_USER}' not found — skipping."
-    fi
+    echo "==> Removing system users..."
+    for user in "${APP_USER}" proxmigrate; do
+        if id "${user}" &>/dev/null; then
+            userdel "${user}"
+            echo "    User '${user}' removed."
+        fi
+    done
+
+    # Clean up old service files that may linger
+    for svc in proxmigrate-gunicorn proxmigrate-celery proxmigrate-daphne; do
+        systemctl stop "${svc}" 2>/dev/null || true
+        systemctl disable "${svc}" 2>/dev/null || true
+        rm -f "/etc/systemd/system/${svc}.service"
+    done
+    systemctl daemon-reload
 else
     echo "==> Data preserved at ${APP_HOME} (--keep-data specified)."
 fi
