@@ -386,7 +386,7 @@ systemctl enable proxorchestrator-daphne 2>/dev/null
 echo "    Daphne service installed."
 
 # Ensure gunicorn service also preserves the shared RuntimeDirectory
-if ! grep -q 'RuntimeDirectoryPreserve' /etc/systemd/system/proxorchestrator-gunicorn.service 2>/dev/null; then
+if [[ -f /etc/systemd/system/proxorchestrator-gunicorn.service ]] && ! grep -q 'RuntimeDirectoryPreserve' /etc/systemd/system/proxorchestrator-gunicorn.service 2>/dev/null; then
     sed -i '/^RuntimeDirectoryMode=/a RuntimeDirectoryPreserve=yes' \
         /etc/systemd/system/proxorchestrator-gunicorn.service
     systemctl daemon-reload
