@@ -1,5 +1,5 @@
 [Unit]
-Description=ProxMigrate Gunicorn application server
+Description=ProxOrchestrator Gunicorn application server
 After=network.target
 
 [Service]

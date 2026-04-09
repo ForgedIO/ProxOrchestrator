@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Certificate Management — ProxMigrate{% endblock %}
+{% block title %}Certificate Management — ProxOrchestrator{% endblock %}
 {% block page_title %}Certificate Management{% endblock %}
 {% block help_slug %}settings-certificates{% endblock %}
 
@@ -138,7 +138,7 @@
       </div>
       <div class="card-body">
         <p style="font-size: 0.82rem;color: var(--text-semi);margin-bottom: 1rem;">
-          ProxMigrate is currently accessible on port <strong>{{ current_port }}</strong>.
+          ProxOrchestrator is currently accessible on port <strong>{{ current_port }}</strong>.
           Changing this will update the nginx configuration and redirect your browser to the new port.
         </p>
         <form method="post" action="{% url 'cert_change_port' %}">
@@ -218,7 +218,7 @@
           <div class="info-box" style="margin-bottom: 1.25rem;">
             <div class="info-box-icon"><i class="fas fa-info-circle"></i></div>
             <div style="font-size: 0.82rem;">
-              ProxMigrate will generate an RSA 2048-bit private key and CSR. The private key stays on this server.
+              ProxOrchestrator will generate an RSA 2048-bit private key and CSR. The private key stays on this server.
               Submit the CSR to your Certificate Authority, then upload the signed certificate using the <strong>Upload Signed Cert</strong> tab.
             </div>
           </div>
@@ -243,7 +243,7 @@
                     <input class="input" type="text" name="cn" placeholder="proxmigrate.example.com"
                            required maxlength="64" style="font-family: monospace;">
                   </div>
-                  <p class="field-hint">Hostname or IP used to reach ProxMigrate.</p>
+                  <p class="field-hint">Hostname or IP used to reach ProxOrchestrator.</p>
                 </div>
               </div>
               <div class="column">
@@ -324,7 +324,7 @@
           <div class="info-box is-success" style="margin-bottom: 1.25rem;">
             <div class="info-box-icon"><i class="fas fa-check-circle"></i></div>
             <div style="font-size: 0.82rem;">
-              A CSR private key is stored on this server. Upload the signed certificate from your CA and ProxMigrate will verify it matches the key before installing.
+              A CSR private key is stored on this server. Upload the signed certificate from your CA and ProxOrchestrator will verify it matches the key before installing.
             </div>
           </div>
           {% endif %}
@@ -423,7 +423,7 @@
           <div class="info-box" style="margin-bottom: 1.25rem;">
             <div class="info-box-icon"><i class="fas fa-info-circle"></i></div>
             <div style="font-size: 0.82rem;">
-              Upload a certificate and private key you manage yourself. Both files must be in <strong>PEM format</strong> and the key must not be password-protected. ProxMigrate will verify the cert and key match before installing.
+              Upload a certificate and private key you manage yourself. Both files must be in <strong>PEM format</strong> and the key must not be password-protected. ProxOrchestrator will verify the cert and key match before installing.
             </div>
           </div>
 

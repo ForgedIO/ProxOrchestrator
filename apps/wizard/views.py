@@ -32,7 +32,7 @@ SSH_KEY_PATHS = [
 
 
 def _read_public_key():
-    """Read the ProxMigrate SSH public key from disk."""
+    """Read the ProxOrchestrator SSH public key from disk."""
     for path in SSH_KEY_PATHS:
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as fh:

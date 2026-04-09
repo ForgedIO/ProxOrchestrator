@@ -93,13 +93,13 @@ class Step5Form(forms.Form):
         initial=100,
         label="VMID Pool — Minimum",
         min_value=100,
-        help_text="Lowest VMID ProxMigrate will auto-assign.",
+        help_text="Lowest VMID ProxOrchestrator will auto-assign.",
     )
     vmid_max = forms.IntegerField(
         initial=999,
         label="VMID Pool — Maximum",
         min_value=101,
-        help_text="Highest VMID ProxMigrate will auto-assign.",
+        help_text="Highest VMID ProxOrchestrator will auto-assign.",
     )
     virtio_iso = forms.CharField(
         max_length=500,

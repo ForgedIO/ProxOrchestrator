@@ -396,7 +396,7 @@ def write_json(data: object, path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build the VM community scripts catalog for ProxMigrate."
+        description="Build the VM community scripts catalog for ProxOrchestrator."
     )
     parser.add_argument(
         "--repo-path",

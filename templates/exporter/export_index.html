@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}VM Export & Import — ProxMigrate{% endblock %}
+{% block title %}VM Export & Import — ProxOrchestrator{% endblock %}
 {% block page_title %}VM Export & Import{% endblock %}
 {% block help_slug %}exporter{% endblock %}
 
@@ -176,7 +176,7 @@
           Trigger an export from any VM's detail page.
         </p>
         <p style="margin-bottom: 0.75rem;">
-          <strong>Import</strong> — restores a <code>.px</code> package onto any ProxMigrate server.
+          <strong>Import</strong> — restores a <code>.px</code> package onto any ProxOrchestrator server.
           You can review and adjust all settings (name, memory, CPU, network, storage) before deployment.
         </p>
         <p style="margin-bottom: 0.75rem;">
@@ -196,7 +196,7 @@
       </div>
       <div class="card-body" style="text-align: center;padding: 1.5rem;">
         <p style="font-size: 0.85rem;color: var(--text-semi);margin-bottom: 1rem;">
-          Have a <code>.px</code> file from another ProxMigrate server?
+          Have a <code>.px</code> file from another ProxOrchestrator server?
         </p>
         <a href="{% url 'px_upload' %}" class="button is-info is-medium is-fullwidth" style="font-weight: 600;">
           <span class="icon"><i class="fas fa-upload"></i></span>

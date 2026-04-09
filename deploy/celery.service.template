@@ -1,5 +1,5 @@
 [Unit]
-Description=ProxMigrate Celery worker
+Description=ProxOrchestrator Celery worker
 After=network.target redis-server.service
 Requires=redis-server.service
 

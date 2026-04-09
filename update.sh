@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ProxMigrate updater
+# ProxOrchestrator updater
 # Usage: sudo ./update.sh
 #
 # Run from the repo root after pulling the latest code.  Updates application
@@ -100,7 +100,7 @@ done
 
 if [[ -n "${NGINX_CONF}" ]] && ! grep -q "acme-challenge.conf" "${NGINX_CONF}" 2>/dev/null; then
     echo "" >> "${NGINX_CONF}"
-    echo "# ACME HTTP-01 challenge server (managed by ProxMigrate)" >> "${NGINX_CONF}"
+    echo "# ACME HTTP-01 challenge server (managed by ProxOrchestrator)" >> "${NGINX_CONF}"
     echo "include ${ACME_CONF};" >> "${NGINX_CONF}"
     echo "    Added ACME include to ${NGINX_CONF}"
     nginx -t 2>/dev/null && nginx -s reload 2>/dev/null && echo "    nginx reloaded"
@@ -175,4 +175,4 @@ systemctl restart proxmigrate-daphne
 systemctl is-active proxmigrate-gunicorn proxmigrate-celery proxmigrate-daphne
 
 echo ""
-echo "ProxMigrate updated successfully."
+echo "ProxOrchestrator updated successfully."

@@ -1,4 +1,4 @@
-# Git Cheat Sheet — ProxMigrate Workflow
+# Git Cheat Sheet — ProxOrchestrator Workflow
 
 ## Everyday Commands
 

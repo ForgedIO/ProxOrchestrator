@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}New VM — ProxMigrate{% endblock %}
+{% block title %}New VM — ProxOrchestrator{% endblock %}
 {% block page_title %}New VM{% endblock %}
 {% block help_slug %}vmcreator-create{% endblock %}
 
@@ -155,7 +155,7 @@
       </div>
       <div class="card-body" style="font-size: 0.85rem;color: var(--text-semi);line-height: 1.7;">
         <p style="margin-bottom: 0.75rem;">
-          <strong>Install from ISO</strong> — upload any bootable ISO (Linux, Windows, network OS, etc.). ProxMigrate transfers it to Proxmox ISO storage, creates the VM, attaches the ISO as a virtual CD-ROM, and boots from it. You complete the installation inside the VM console.
+          <strong>Install from ISO</strong> — upload any bootable ISO (Linux, Windows, network OS, etc.). ProxOrchestrator transfers it to Proxmox ISO storage, creates the VM, attaches the ISO as a virtual CD-ROM, and boots from it. You complete the installation inside the VM console.
         </p>
         <p style="margin-bottom: 0.75rem;">
           <strong>Blank VM</strong> — creates a fully configured VM shell with no media attached. Useful when you want to attach an existing Proxmox ISO or disk manually after creation.

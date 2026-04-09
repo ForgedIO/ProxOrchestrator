@@ -61,9 +61,9 @@ server {
         proxy_request_buffering off;
     }
 
-    # VM console WebSocket proxy — target written by ProxMigrate after wizard completes
+    # VM console WebSocket proxy — target written by ProxOrchestrator after wizard completes
     include /opt/proxmigrate/deploy/proxmox_ws.conf;
 }
 
-# ACME HTTP-01 challenge server (managed by ProxMigrate — empty when not in use)
+# ACME HTTP-01 challenge server (managed by ProxOrchestrator — empty when not in use)
 include /opt/proxmigrate/deploy/acme-challenge.conf;

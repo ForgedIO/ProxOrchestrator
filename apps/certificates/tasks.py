@@ -560,15 +560,15 @@ def _auto_trigger_dns01_renewal(config, days_remaining):
             )
             if staff_emails:
                 send_mail(
-                    f"[ProxMigrate] DNS record needed for certificate renewal",
-                    f"ProxMigrate needs to renew its TLS certificate "
+                    f"[ProxOrchestrator] DNS record needed for certificate renewal",
+                    f"ProxOrchestrator needs to renew its TLS certificate "
                     f"({days_remaining} days remaining).\n\n"
                     f"Please create or update this DNS TXT record:\n\n"
                     f"  Name:  _acme-challenge.{config.domain}\n"
                     f"  Value: {txt_value}\n\n"
-                    f"Then log in to ProxMigrate and click "
+                    f"Then log in to ProxOrchestrator and click "
                     f"'I've Created the DNS Record' on the Certificates page.\n\n"
-                    f"— ProxMigrate",
+                    f"— ProxOrchestrator",
                     None,
                     staff_emails,
                     fail_silently=True,
@@ -605,15 +605,15 @@ def _send_expiry_alerts(config, days_remaining):
         if days_remaining <= days_threshold and not getattr(config, flag_field):
             urgency = "URGENT: " if days_threshold == 7 else ""
             subject = (
-                f"[ProxMigrate] {urgency}TLS certificate expires "
+                f"[ProxOrchestrator] {urgency}TLS certificate expires "
                 f"in {days_remaining} days"
             )
             body = (
-                f"The TLS certificate for ProxMigrate expires in "
+                f"The TLS certificate for ProxOrchestrator expires in "
                 f"{days_remaining} days.\n\n"
-                f"Please log in to ProxMigrate and visit Settings > "
+                f"Please log in to ProxOrchestrator and visit Settings > "
                 f"Certificates to renew.\n\n"
-                f"— ProxMigrate"
+                f"— ProxOrchestrator"
             )
 
             try:

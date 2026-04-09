@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ProxMigrate installer
+# ProxOrchestrator installer
 # Usage: sudo ./install.sh [--port <n>]
 set -euo pipefail
 
@@ -29,7 +29,7 @@ usage() {
     echo "Usage: sudo $0 [--port <1-65535>] [--help]"
     echo ""
     echo "Options:"
-    echo "  --port <n>   HTTPS port for ProxMigrate (default: ${DEFAULT_PORT})"
+    echo "  --port <n>   HTTPS port for ProxOrchestrator (default: ${DEFAULT_PORT})"
     echo "  --help       Show this help and exit"
     exit 0
 }
@@ -97,7 +97,7 @@ else
     echo ""
     echo "ERROR: No supported package manager found (apt-get, dnf, yum, zypper)." >&2
     echo ""
-    echo "ProxMigrate requires the following packages to be installed manually:"
+    echo "ProxOrchestrator requires the following packages to be installed manually:"
     echo "  - Python 3 with pip and venv"
     echo "  - python3-dev (or python3-devel)"
     echo "  - gcc"
@@ -168,7 +168,7 @@ case "${PKG_MANAGER}" in
         if [[ -f /usr/bin/pveversion ]]; then
             echo ""
             echo "  NOTE: Proxmox VE detected on this host."
-            echo "  ProxMigrate is designed to run on a SEPARATE server that connects to Proxmox"
+            echo "  ProxOrchestrator is designed to run on a SEPARATE server that connects to Proxmox"
             echo "  via SSH and REST API. Installing here is supported but not recommended."
             echo ""
         else
@@ -182,7 +182,7 @@ case "${PKG_MANAGER}" in
         if [[ -f /usr/bin/pveversion ]]; then
             echo ""
             echo "  NOTE: Proxmox VE detected on this host."
-            echo "  ProxMigrate is designed to run on a SEPARATE server that connects to Proxmox"
+            echo "  ProxOrchestrator is designed to run on a SEPARATE server that connects to Proxmox"
             echo "  via SSH and REST API. Installing here is supported but not recommended."
             echo ""
         fi
@@ -211,7 +211,7 @@ case "${PKG_MANAGER}" in
         if [[ -f /usr/bin/pveversion ]]; then
             echo ""
             echo "  NOTE: Proxmox VE detected on this host."
-            echo "  ProxMigrate is designed to run on a SEPARATE server that connects to Proxmox"
+            echo "  ProxOrchestrator is designed to run on a SEPARATE server that connects to Proxmox"
             echo "  via SSH and REST API. Installing here is supported but not recommended."
             echo ""
         fi
@@ -327,7 +327,7 @@ if [[ ! -f "${CERTS_DIR}/proxmigrate.crt" ]]; then
         -newkey rsa:4096 \
         -keyout "${CERTS_DIR}/proxmigrate.key" \
         -out "${CERTS_DIR}/proxmigrate.crt" \
-        -subj "/CN=proxmigrate/O=ProxMigrate/C=US" \
+        -subj "/CN=proxmigrate/O=ProxOrchestrator/C=US" \
         2>/dev/null
     chmod 600 "${CERTS_DIR}/proxmigrate.key"
     chown -R "${APP_USER}:${APP_USER}" "${CERTS_DIR}"
@@ -461,7 +461,7 @@ if [[ "${PKG_MANAGER}" =~ ^(dnf|yum)$ ]] && command -v getenforce &>/dev/null; t
     echo "==> SELinux status: ${SELINUX_STATUS}"
 
     if [[ "${SELINUX_STATUS}" == "Enforcing" || "${SELINUX_STATUS}" == "Permissive" ]]; then
-        echo "    Applying SELinux policy for ProxMigrate..."
+        echo "    Applying SELinux policy for ProxOrchestrator..."
 
         # Allow nginx (httpd_t) to proxy to the gunicorn Unix socket
         setsebool -P httpd_can_network_connect 1
@@ -669,7 +669,7 @@ PRIMARY_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 
 echo ""
 echo "============================================================"
-echo "  ProxMigrate installation complete!"
+echo "  ProxOrchestrator installation complete!"
 echo "============================================================"
 echo ""
 echo "  Access URL : https://${PRIMARY_IP}:${PORT}"

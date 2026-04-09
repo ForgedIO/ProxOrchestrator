@@ -68,7 +68,7 @@ def _parse_manifest(px_path):
     if version != MANIFEST_VERSION:
         raise ValueError(
             f"Unsupported package version '{version}'. "
-            f"This version of ProxMigrate supports version '{MANIFEST_VERSION}'."
+            f"This version of ProxOrchestrator supports version '{MANIFEST_VERSION}'."
         )
     return manifest
 

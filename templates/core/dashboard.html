@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — ProxMigrate{% endblock %}
+{% block title %}Dashboard — ProxOrchestrator{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 {% block help_slug %}dashboard{% endblock %}
 
@@ -23,7 +23,7 @@
       <div style="flex: 1;">
         <h2 style="font-size: 1.15rem;font-weight: 700;color: var(--text-header);margin-bottom: 0.4rem;">Setup Required</h2>
         <p style="color: var(--text-muted);font-size: 0.9rem;margin-bottom: 1.25rem;line-height: 1.6;">
-          ProxMigrate hasn't been connected to your Proxmox server yet. Run the setup wizard to configure your Proxmox host, SSH key authentication, API token, and default settings.
+          ProxOrchestrator hasn't been connected to your Proxmox server yet. Run the setup wizard to configure your Proxmox host, SSH key authentication, API token, and default settings.
         </p>
         <a href="{% url 'wizard_step1' %}" class="button is-primary" style="font-weight: 600;">
           <span class="icon"><i class="fas fa-magic"></i></span>

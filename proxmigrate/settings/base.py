@@ -49,7 +49,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.microsoft",
-    # ProxMigrate apps
+    # ProxOrchestrator apps
     "apps.core",
     "apps.wizard",
     "apps.proxmox",

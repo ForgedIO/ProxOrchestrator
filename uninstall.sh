@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ProxMigrate uninstaller
+# ProxOrchestrator uninstaller
 # Usage: sudo ./uninstall.sh [--keep-data]
 set -euo pipefail
 
@@ -49,7 +49,7 @@ fi
 
 echo ""
 echo "============================================================"
-echo "  ProxMigrate Uninstaller"
+echo "  ProxOrchestrator Uninstaller"
 echo "============================================================"
 echo ""
 if [[ "${KEEP_DATA}" == "true" ]]; then
@@ -58,7 +58,7 @@ else
     echo "  Mode: Full removal (services + all data)"
     echo ""
     echo "  WARNING: This will permanently delete:"
-    echo "    - The ProxMigrate application and database"
+    echo "    - The ProxOrchestrator application and database"
     echo "    - All uploaded disk images"
     echo "    - SSL certificates and SSH keys"
     echo "    - The '${APP_USER}' system user"
@@ -75,7 +75,7 @@ echo ""
 # Stop and disable services
 # ---------------------------------------------------------------------------
 
-echo "==> Stopping ProxMigrate services..."
+echo "==> Stopping ProxOrchestrator services..."
 
 for SVC in proxmigrate-gunicorn proxmigrate-celery; do
     if systemctl is-active "${SVC}" &>/dev/null; then
@@ -160,7 +160,7 @@ fi
 
 echo ""
 echo "============================================================"
-echo "  ProxMigrate has been uninstalled."
+echo "  ProxOrchestrator has been uninstalled."
 if [[ "${KEEP_DATA}" == "true" ]]; then
     echo "  Your data is preserved at: ${APP_HOME}"
     echo "  To also remove data, run: sudo $0 (without --keep-data)"
