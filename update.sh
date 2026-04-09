@@ -14,6 +14,7 @@ VENV="${APP_HOME}/venv"
 PYTHON="${VENV}/bin/python"
 PIP="${VENV}/bin/pip"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MIGRATED_FROM_PROXMIGRATE=false
 
 # ---------------------------------------------------------------------------
 if [[ "${EUID}" -ne 0 ]]; then
@@ -93,34 +94,11 @@ if [[ -d "${OLD_HOME}" && ! -d "${APP_HOME}" ]]; then
     rm -f /etc/systemd/system/proxmigrate-celery.service
     rm -f /etc/systemd/system/proxmigrate-daphne.service
 
-    # 8. Install new nginx config
-    echo "==> Updating nginx configuration..."
-    # Remove old nginx config
+    # 8. Remove old nginx config (new config generated after rsync below)
+    echo "==> Removing old nginx configuration..."
     rm -f /etc/nginx/sites-enabled/proxmigrate
     rm -f /etc/nginx/sites-available/proxmigrate
     rm -f /etc/nginx/conf.d/proxmigrate.conf
-
-    # The new nginx config will be installed by the normal update flow below
-    # via the deploy/nginx.conf.template
-
-    # Detect nginx config style
-    if [[ -d "/etc/nginx/sites-available" ]]; then
-        NGINX_CONF_FILE="/etc/nginx/sites-available/proxorchestrator"
-        sed \
-            -e "s|{{ WEB_PORT }}|$(grep -oP 'WEB_PORT=\K.*' "${ENV_FILE}" 2>/dev/null || echo 8443)|g" \
-            -e "s|{{ UPLOAD_ROOT }}|${APP_HOME}/uploads|g" \
-            "${APP_HOME}/deploy/nginx.conf.template" \
-            > "${NGINX_CONF_FILE}"
-        ln -sf "${NGINX_CONF_FILE}" /etc/nginx/sites-enabled/proxorchestrator
-    else
-        NGINX_CONF_FILE="/etc/nginx/conf.d/proxorchestrator.conf"
-        sed \
-            -e "s|{{ WEB_PORT }}|$(grep -oP 'WEB_PORT=\K.*' "${ENV_FILE}" 2>/dev/null || echo 8443)|g" \
-            -e "s|{{ UPLOAD_ROOT }}|${APP_HOME}/uploads|g" \
-            "${APP_HOME}/deploy/nginx.conf.template" \
-            > "${NGINX_CONF_FILE}"
-    fi
-    nginx -t 2>/dev/null && echo "    Nginx config valid."
 
     # 9. Update sudoers
     echo "==> Updating sudoers rules..."
@@ -212,8 +190,7 @@ SUDOERS
     done
     echo "    Service files installed and enabled."
 
-    # 13. Reload nginx with new config
-    nginx -t 2>/dev/null && systemctl reload nginx && echo "    Nginx reloaded."
+    MIGRATED_FROM_PROXMIGRATE=true
 
     echo ""
     echo "  Migration complete. Old installation preserved at ${OLD_HOME}."
@@ -245,6 +222,76 @@ done
 # Ensure venv is owned by app user (fixes permission issues from older installs
 # where install.sh ran pip as root)
 chown -R "${APP_USER}:${APP_USER}" "${VENV}"
+
+# ---------------------------------------------------------------------------
+# Regenerate nginx config after migration (uses new template from rsync)
+# ---------------------------------------------------------------------------
+if [[ "${MIGRATED_FROM_PROXMIGRATE:-}" == "true" ]]; then
+    echo "==> Generating nginx config from new template..."
+    ENV_FILE="${APP_HOME}/.env"
+    WEB_PORT=$(grep -oP 'WEB_PORT=\K.*' "${ENV_FILE}" 2>/dev/null || echo 8443)
+
+    if [[ -d "/etc/nginx/sites-available" ]]; then
+        NGINX_CONF_FILE="/etc/nginx/sites-available/proxorchestrator"
+        sed \
+            -e "s|{{ WEB_PORT }}|${WEB_PORT}|g" \
+            -e "s|{{ UPLOAD_ROOT }}|${APP_HOME}/uploads|g" \
+            "${APP_HOME}/deploy/nginx.conf.template" \
+            > "${NGINX_CONF_FILE}"
+        ln -sf "${NGINX_CONF_FILE}" /etc/nginx/sites-enabled/proxorchestrator
+    else
+        NGINX_CONF_FILE="/etc/nginx/conf.d/proxorchestrator.conf"
+        sed \
+            -e "s|{{ WEB_PORT }}|${WEB_PORT}|g" \
+            -e "s|{{ UPLOAD_ROOT }}|${APP_HOME}/uploads|g" \
+            "${APP_HOME}/deploy/nginx.conf.template" \
+            > "${NGINX_CONF_FILE}"
+    fi
+    nginx -t 2>/dev/null && echo "    Nginx config valid." && systemctl reload nginx && echo "    Nginx reloaded."
+fi
+
+# ---------------------------------------------------------------------------
+# Fix stale nginx config that still references old proxmigrate paths
+# ---------------------------------------------------------------------------
+NGINX_LIVE=""
+for p in /etc/nginx/sites-enabled/proxorchestrator /etc/nginx/sites-available/proxorchestrator /etc/nginx/conf.d/proxorchestrator.conf; do
+    if [[ -f "${p}" ]]; then
+        NGINX_LIVE="${p}"
+        break
+    fi
+done
+
+if [[ -n "${NGINX_LIVE}" ]] && grep -q "proxmigrate" "${NGINX_LIVE}" 2>/dev/null; then
+    echo "==> Fixing stale nginx config (still references proxmigrate)..."
+    ENV_FILE="${APP_HOME}/.env"
+    WEB_PORT=$(grep -oP 'WEB_PORT=\K.*' "${ENV_FILE}" 2>/dev/null || echo 8443)
+
+    if [[ -d "/etc/nginx/sites-available" ]]; then
+        sed \
+            -e "s|{{ WEB_PORT }}|${WEB_PORT}|g" \
+            -e "s|{{ UPLOAD_ROOT }}|${APP_HOME}/uploads|g" \
+            "${APP_HOME}/deploy/nginx.conf.template" \
+            > /etc/nginx/sites-available/proxorchestrator
+        ln -sf /etc/nginx/sites-available/proxorchestrator /etc/nginx/sites-enabled/proxorchestrator
+    else
+        sed \
+            -e "s|{{ WEB_PORT }}|${WEB_PORT}|g" \
+            -e "s|{{ UPLOAD_ROOT }}|${APP_HOME}/uploads|g" \
+            "${APP_HOME}/deploy/nginx.conf.template" \
+            > /etc/nginx/conf.d/proxorchestrator.conf
+    fi
+    # Remove old sudoers and install new
+    rm -f /etc/sudoers.d/proxmigrate-nginx
+    cat > /etc/sudoers.d/proxorchestrator-nginx <<SUDOERS
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/proxorchestrator
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/conf.d/proxorchestrator.conf
+${APP_USER} ALL=(ALL) NOPASSWD: /usr/bin/tee /opt/proxorchestrator/deploy/acme-challenge.conf
+SUDOERS
+    chmod 440 /etc/sudoers.d/proxorchestrator-nginx
+    nginx -t 2>/dev/null && systemctl reload nginx && echo "    Nginx config fixed and reloaded."
+fi
 
 echo "==> Installing/upgrading Python dependencies..."
 sudo -u "${APP_USER}" "${PIP}" install -q -r "${APP_HOME}/requirements.txt"
