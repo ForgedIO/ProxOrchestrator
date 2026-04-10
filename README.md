@@ -1,6 +1,6 @@
 # ProxOrchestrator
 
-**Version 1.1.2** — Build `2026-04-08.2`
+**Version 1.1.2** — Build `2026-04-10.1`
 
 > **To update an existing install:** `git pull origin main && sudo ./update.sh`
 
@@ -365,6 +365,7 @@ ProxOrchestrator handles template downloading, container creation, and optional 
 
 ### v1.1.2 — 2026-04-10.1
 - **LXC settings editors** — pencil-edit modals on the container detail page for CPU (cores, cpulimit, cpuunits), memory (RAM, swap), and description; running-container restart warnings where relevant
+- **LXC options editor** — edit start-on-boot, protection, startup order, features (Nesting, FUSE, keyctl, mknod), tags, and hookscript from a dedicated modal; unprivileged shown read-only with a note explaining it can only be changed by container recreation
 - **LXC mountpoint management** — HTMX-loaded storage card with add (storage pool, size, mount path, backup flag), grow-only resize modal, and detach for mp0+ (rootfs is resize-only); mirrors VM disk UX
 - **LXC NIC connect/disconnect** — toggle `link_down` per interface from the container detail page; disconnected NICs render dimmed with status indicator
 
