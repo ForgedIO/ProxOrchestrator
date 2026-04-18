@@ -335,8 +335,14 @@
 
 /* --------------------------------------------------------------------------
    Sidebar cluster picker — sidebar is always dark, so force dark-friendly
-   select styling in both themes to match the surrounding chrome.
+   styling in both themes to match the surrounding chrome.
    -------------------------------------------------------------------------- */
+.sidebar-cluster-picker .nav-label {
+  color: var(--text-sidebar);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
 .sidebar-cluster-picker .select select {
   background-color: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border-sidebar);
