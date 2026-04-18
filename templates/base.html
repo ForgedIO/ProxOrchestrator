@@ -50,7 +50,7 @@
       </div>
     </div>
     {% if all_clusters|length > 0 and user.is_staff %}
-      <div style="padding: 0.75rem 1.5rem 0.4rem;border-bottom: 1px solid var(--border-sidebar);">
+      <div class="sidebar-cluster-picker" style="padding: 0.75rem 1.5rem 0.4rem;border-bottom: 1px solid var(--border-sidebar);">
         <div class="nav-label" style="margin-bottom: 0.3rem;">Active cluster</div>
         <form method="post" action="{% url 'cluster_switch' %}" style="margin: 0;">
           {% csrf_token %}
@@ -63,9 +63,7 @@
                 {% endfor %}
               </select>
             </div>
-            <a href="{% url 'cluster_list' %}"
-               title="Manage clusters"
-               style="color: var(--text-sidebar);opacity: 0.7;font-size: 0.8rem;">
+            <a href="{% url 'cluster_list' %}" title="Manage clusters" style="font-size: 0.8rem;">
               <i class="fas fa-cog"></i>
             </a>
           </div>

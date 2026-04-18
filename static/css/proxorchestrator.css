@@ -334,6 +334,37 @@
 }
 
 /* --------------------------------------------------------------------------
+   Sidebar cluster picker — sidebar is always dark, so force dark-friendly
+   select styling in both themes to match the surrounding chrome.
+   -------------------------------------------------------------------------- */
+.sidebar-cluster-picker .select select {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-sidebar);
+  color: var(--text-sidebar-active);
+  padding-right: 2rem;
+}
+.sidebar-cluster-picker .select select:focus,
+.sidebar-cluster-picker .select select:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--text-sidebar-active);
+  box-shadow: none;
+}
+.sidebar-cluster-picker .select:not(.is-multiple):not(.is-loading)::after {
+  border-color: var(--text-sidebar-active);
+}
+.sidebar-cluster-picker .select select option {
+  background-color: var(--bg-sidebar);
+  color: var(--text-sidebar-active);
+}
+.sidebar-cluster-picker a {
+  color: var(--text-sidebar);
+}
+.sidebar-cluster-picker a:hover {
+  color: var(--text-sidebar-active);
+}
+
+/* --------------------------------------------------------------------------
    Theme Toggle Switch
    -------------------------------------------------------------------------- */
 .theme-switch {
